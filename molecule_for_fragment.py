@@ -1,5 +1,5 @@
 from pickle import load
-from itertools import groupby
+from itertools import groupby, product
 
 from API_client.api import API
 from fragment_dihedrals.fragment_dihedral import element_valence_for_atom, on_asc_number_electron_then_asc_valence
@@ -210,6 +210,39 @@ class Molecule:
 
         return g
 
+    def assign_bond_orders(self):
+        POSSIBLE_BOND_ORDER = (1, 2)
+
+        possible_bond_orders_lists = product(POSSIBLE_BOND_ORDER, repeat=len(self.bonds))
+        acceptable_bond_orders = [zip(self.bonds, bond_orders) for bond_orders in possible_bond_orders_lists if self.is_valid(bond_orders)]
+
+        assert len(acceptable_bond_orders) == 1
+
+    def is_valid(self, bond_orders):
+        assert len(self.bonds) == len(bond_orders)
+
+        on_atom_id = lambda (atom_id, bond_order): atom_id
+        on_bond_order = lambda (atom_id, bond_order): bond_order
+
+        valid = all(
+            [
+                sum(map(on_bond_order, group)) == self.atoms[atom_id]['valence']
+                for (atom_id, group) in
+                groupby(
+                    sorted(
+                        reduce(
+                            lambda acc, e: acc + e,
+                            [((atom_id_1, bond_order), (atom_id_2, bond_order)) for ((atom_id_1, atom_id_2), bond_order) in zip(self.bonds, bond_orders)],
+                            (),
+                        ),
+                        key=on_atom_id,
+                    ),
+                    key=on_atom_id,
+                )
+            ],
+        )
+        return valid
+
 api = API(
     host='http://scmb-atb.biosci.uq.edu.au/atb-uqbcaron', #'https://atb.uq.edu.au',
     debug=False,
@@ -276,6 +309,7 @@ def molecule_for_capped_dihedral_fragment(fragment):
     )
 
     formula = m.cap_molecule(neighbours_id_1, neighbours_id_4)
+    m.assign_bond_orders()
     return m
 
 def get_matches():
