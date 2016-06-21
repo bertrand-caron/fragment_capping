@@ -216,8 +216,8 @@ api = API(
     api_format='pickle',
 )
 
-with open('protein_fragments.pickle') as fh:
-    protein_fragments =  load(fh)
+with open('cache/protein_fragments.pickle') as fh:
+    protein_fragments = load(fh)
 
 def truncated_molecule(molecule):
     return dict(
@@ -405,7 +405,11 @@ if __name__ == '__main__':
             if molid in png_files:
                 image = Image.open(png_files[molid])
                 axarr[indices_for_fig(n)].imshow(image)
-            axarr[indices_for_fig(n)].set_title(fragment)
+            axarr[indices_for_fig(n)].set_title(
+                fragment + (' (molid={0})'.format(molid) if molid in png_files else ''),
+                fontsize=11,
+                fontname='Andale Mono',
+            )
             axarr[indices_for_fig(n)].set_axis_off()
 
         for n in range(len(matches), subplot_dim**2):
