@@ -6,6 +6,8 @@ from fragment_dihedrals.fragment_dihedral import element_valence_for_atom, on_as
 from collections import namedtuple
 from StringIO import StringIO
 
+DRAW_GRAPHS = False
+
 class Molecule:
     FULL_VALENCES = {
         'C': 4,
@@ -211,9 +213,24 @@ class Molecule:
         return g
 
     def assign_bond_orders(self):
-        POSSIBLE_BOND_ORDER = (1, 2)
+        POSSIBLE_BOND_ORDERS = {
+            'S': (1, 2,),
+            'C': (1, 2,),
+            'H': (1,),
+            'O': (1, 2,),
+            'N': (1, 2,),
+        }
 
-        possible_bond_orders_lists = product(POSSIBLE_BOND_ORDER, repeat=len(self.bonds))
+        possible_bond_orders_lists = product(
+            *[
+                set.intersection(set(POSSIBLE_BOND_ORDERS[element_1]), set(POSSIBLE_BOND_ORDERS[element_2]))
+                for (element_1, element_2) in
+                map(
+                    lambda bond: (self.atoms[bond[0]]['element'], self.atoms[bond[1]]['element']),
+                    self.bonds,
+                )
+            ]
+        )
         acceptable_bond_orders = [zip(self.bonds, bond_orders) for bond_orders in possible_bond_orders_lists if self.is_valid(bond_orders)]
 
         assert len(acceptable_bond_orders) == 1
@@ -226,7 +243,7 @@ class Molecule:
 
         valid = all(
             [
-                sum(map(on_bond_order, group)) == self.atoms[atom_id]['valence']
+                sum(map(on_bond_order, group)) == Molecule.FULL_VALENCES[self.atoms[atom_id]['element']]
                 for (atom_id, group) in
                 groupby(
                     sorted(
@@ -363,15 +380,16 @@ def get_matches():
 
         safe_fragment_name = fragment=fragment.replace('|', '_')
 
-        from py_graphs.pdb import graph_from_pdb
-        from py_graphs.moieties import draw_graph
-        graph = molecule.graph()
-        draw_graph(
-            graph,
-            fnme='graphs/{fragment}.png'.format(
-                fragment=safe_fragment_name,
-            ),
-        )
+        if DRAW_GRAPHS:
+            from py_graphs.pdb import graph_from_pdb
+            from py_graphs.moieties import draw_graph
+            graph = molecule.graph()
+            draw_graph(
+                graph,
+                fnme='graphs/{fragment}.png'.format(
+                    fragment=safe_fragment_name,
+                ),
+            )
 
         with open('pdbs/{fragment}.pdb'.format(fragment=safe_fragment_name), 'w') as fh:
             fh.write(molecule.dummy_pdb())
