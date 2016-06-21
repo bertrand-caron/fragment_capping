@@ -396,7 +396,7 @@ if __name__ == '__main__':
         from PIL import Image
         subplot_dim = int(ceil(sqrt(len(matches))))
 
-        fig, axarr = p.subplots(*[subplot_dim]*2)
+        fig, axarr = p.subplots(*[subplot_dim]*2, figsize=(30, 15))
 
         def indices_for_fig(n):
             return ((n // subplot_dim), n - (n // subplot_dim) * subplot_dim)
@@ -406,8 +406,13 @@ if __name__ == '__main__':
                 image = Image.open(png_files[molid])
                 axarr[indices_for_fig(n)].imshow(image)
             axarr[indices_for_fig(n)].set_title(fragment)
+            axarr[indices_for_fig(n)].set_axis_off()
+
+        for n in range(len(matches), subplot_dim**2):
+            axarr[indices_for_fig(n)].set_axis_off()
 
         p.tight_layout()
         p.show()
+        fig.savefig('collage.png')
 
     figure_collage()
