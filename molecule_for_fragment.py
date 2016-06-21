@@ -249,7 +249,11 @@ class Molecule:
                     sorted(
                         reduce(
                             lambda acc, e: acc + e,
-                            [((atom_id_1, bond_order), (atom_id_2, bond_order)) for ((atom_id_1, atom_id_2), bond_order) in zip(self.bonds, bond_orders)],
+                            [
+                                ((atom_id_1, bond_order), (atom_id_2, bond_order))
+                                for ((atom_id_1, atom_id_2), bond_order) in
+                                zip(self.bonds, bond_orders)
+                            ],
                             (),
                         ),
                         key=on_atom_id,
