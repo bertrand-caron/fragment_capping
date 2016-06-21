@@ -188,6 +188,28 @@ class Molecule:
     def inchi(self):
         return self.representation('inchi')
 
+    def graph(self):
+        try:
+            from graph_tool.all import Graph
+        except:
+            return None
+
+        g = Graph(directed=False)
+
+        vertex_types = g.new_vertex_property("string")
+        g.vertex_properties['type'] = vertex_types
+
+        vertices = []
+        for atom_index in sorted(self.atoms.keys()):
+            v = g.add_vertex()
+            vertex_types[v] = '{element}{valence}'.format(**self.atoms[atom_index])
+            vertices.append(v)
+
+        for (i, j) in self.bonds:
+            g.add_edge(vertices[i], vertices[j])
+
+        return g
+
 api = API(
     host='http://scmb-atb.biosci.uq.edu.au/atb-uqbcaron', #'https://atb.uq.edu.au',
     debug=False,
@@ -256,7 +278,7 @@ def molecule_for_capped_dihedral_fragment(fragment):
     formula = m.cap_molecule(neighbours_id_1, neighbours_id_4)
     return m
 
-if __name__ == '__main__':
+def get_matches():
     matches = {}
 
     for (i, (fragment, count)) in enumerate(protein_fragments):
@@ -305,15 +327,20 @@ if __name__ == '__main__':
 
         matches[fragment] = best_molid
 
+        safe_fragment_name = fragment=fragment.replace('|', '_')
+
         from py_graphs.pdb import graph_from_pdb
         from py_graphs.moieties import draw_graph
-        graph = graph_from_pdb(molecule.dummy_pdb())
+        graph = molecule.graph()
         draw_graph(
             graph,
             fnme='graphs/{fragment}.png'.format(
-                fragment=fragment.replace('|', '_'),
+                fragment=safe_fragment_name,
             ),
         )
+
+        with open('pdbs/{fragment}.pdb'.format(fragment=safe_fragment_name), 'w') as fh:
+            fh.write(molecule.dummy_pdb())
 
         print
 
@@ -336,3 +363,51 @@ if __name__ == '__main__':
                 molid=molid,
                 dihedral_fragment=fragment,
             )
+    return matches
+
+if __name__ == '__main__':
+    from cache import cached
+    from cairosvg import svg2png
+    from os.path import join, exists
+    from math import sqrt, ceil
+
+    matches = cached(get_matches, (), {})
+    print matches
+
+    def png_file_for(molid):
+        PNG_DIR = 'pngs'
+
+        png_file = join(
+            PNG_DIR,
+            '{molid}.png'.format(molid=molid),
+        )
+
+        if not exists(png_file):
+            svg2png(
+                url='https://atb.uq.edu.au/img2D/{molid}_thumb.svg'.format(molid=molid),
+                write_to=png_file,
+            )
+        return png_file
+
+    png_files = dict([(molid, png_file_for(molid)) for molid in matches.values() if molid is not None])
+
+    def figure_collage():
+        import matplotlib.pyplot as p
+        from PIL import Image
+        subplot_dim = int(ceil(sqrt(len(matches))))
+
+        fig, axarr = p.subplots(*[subplot_dim]*2)
+
+        def indices_for_fig(n):
+            return ((n // subplot_dim), n - (n // subplot_dim) * subplot_dim)
+
+        for (n, (fragment, molid)) in enumerate(sorted(matches.items())):
+            if molid in png_files:
+                image = Image.open(png_files[molid])
+                axarr[indices_for_fig(n)].imshow(image)
+            axarr[indices_for_fig(n)].set_title(fragment)
+
+        p.tight_layout()
+        p.show()
+
+    figure_collage()
