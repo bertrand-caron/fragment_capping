@@ -137,10 +137,10 @@ class Molecule:
                     for capping_scheme in capping_schemes
                 ],
             ),
-            key=lambda mol: mol.n_atoms(),
+            key=lambda mol: (abs(mol.netcharge()), mol.n_atoms()),
         )
 
-        print 'Possible capped molecules: {0}'.format([(mol.formula(), mol.netcharge(), mol.charges, zip(mol.bonds, mol.bond_orders)) for mol in possible_capped_molecules])
+        print 'Possible capped molecules: {0}'.format([(mol.formula(charge=True), mol.netcharge()) for mol in possible_capped_molecules])
 
         if DRAW_GRAPHS:
             from py_graphs.pdb import graph_from_pdb
@@ -155,7 +155,7 @@ class Molecule:
         best_molecule = possible_capped_molecules[0]
         return best_molecule
 
-    def formula(self):
+    def formula(self, charge=False):
         elements =  [atom['element'] for atom in self.atoms.values()]
 
         return ''.join(
@@ -171,6 +171,15 @@ class Molecule:
                         ),
                     )
                 ],
+            )
+            +
+            (
+                    [
+                        (' ' + str(abs(self.netcharge()))) if self.netcharge() != 0 else '',
+                        '+' if self.netcharge() > 0 else ('-' if self.netcharge() < 0 else ''),
+                    ]
+                    if charge == True
+                    else []
             ),
         )
 
@@ -300,8 +309,10 @@ class Molecule:
 
         assert len(acceptable_bond_orders_and_charges) >= 1, 'Wrong bond_orders and charges: {0}'.format(acceptable_bond_orders_and_charges)
 
-        self.bond_orders = bond_orders
-        self.charges = charges
+        self.bond_orders, self.charges = sorted(
+            acceptable_bond_orders_and_charges,
+            key=lambda (_, charges): abs(sum(charges)),
+        )[0]
 
     def netcharge(self):
         try:
@@ -498,6 +509,7 @@ if __name__ == '__main__':
     from math import sqrt, ceil
 
     matches = cached(get_matches, (), {})
+    counts = dict(protein_fragments)
     print matches
 
     def png_file_for(molid):
@@ -527,7 +539,7 @@ if __name__ == '__main__':
         def indices_for_fig(n):
             return ((n // subplot_dim), n - (n // subplot_dim) * subplot_dim)
 
-        for (n, (fragment, molid)) in enumerate(sorted(matches.items())):
+        for (n, (fragment, molid)) in enumerate(sorted(matches.items(), key=lambda (fragment, _): counts[fragment], reverse=True)):
             if molid in png_files:
                 image = Image.open(png_files[molid])
                 axarr[indices_for_fig(n)].imshow(image)
