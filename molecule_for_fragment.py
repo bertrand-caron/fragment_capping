@@ -6,7 +6,7 @@ from fragment_dihedrals.fragment_dihedral import element_valence_for_atom, on_as
 from collections import namedtuple
 from StringIO import StringIO
 
-DRAW_GRAPHS = False
+DRAW_GRAPHS = True
 
 def atom_desc(atom):
     return atom['element'] + str(atom['valence'])
@@ -20,9 +20,10 @@ class Molecule:
         'S': 2,
     }
 
-    def __init__(self, atoms, bonds):
+    def __init__(self, atoms, bonds, name=None):
         self.atoms = atoms
         self.bonds = bonds
+        self.name = name
 
     def cap_atom(atom_id):
         assert atom_id in self.atoms
@@ -75,8 +76,10 @@ class Molecule:
 
         try:
             capped_molecule.check_valence()
+            capped_molecule.assign_bond_orders_and_charges()
             return capped_molecule
-        except:
+        except AssertionError as e:
+            print str(e)
             return None
 
     def check_valence(self):
@@ -102,7 +105,7 @@ class Molecule:
         H_CAP = Capping_Strategy(('H',), ((0, 1),), (1,))
         H2_CAP = Capping_Strategy(('H', 'H'), ((0, 1), (0, 2)), (1, 1))
         H3_CAP = Capping_Strategy(('H', 'H', 'H'), ((0, 1), (0, 2), (0, 3)), (1, 1, 1))
-        H_CH2_CAP = Capping_Strategy(('H', 'C', 'H', 'H'), ((0, 1), (0, 2), (2, 3), (2, 4)), (1, 4, 1, 1))
+        H_CH2_CAP = Capping_Strategy(('H', 'C', 'H', 'H'), ((0, 1), (0, 2), (2, 3), (2, 4)), (1, 3, 1, 1))
         CH3_CAP = Capping_Strategy(('C', 'H', 'H', 'H'), ((0, 1), (1, 2), (1, 3), (1, 4)), (4, 1, 1, 1))
 
         CAPPING_OPTIONS = {
@@ -137,7 +140,17 @@ class Molecule:
             key=lambda mol: mol.n_atoms(),
         )
 
-        print 'Possible capped molecules: {0}'.format([mol.formula() for mol in possible_capped_molecules])
+        print 'Possible capped molecules: {0}'.format([(mol.formula(), mol.netcharge(), mol.charges, zip(mol.bonds, mol.bond_orders)) for mol in possible_capped_molecules])
+
+        if DRAW_GRAPHS:
+            from py_graphs.pdb import graph_from_pdb
+            from py_graphs.moieties import draw_graph
+            for (i, molecule) in enumerate(possible_capped_molecules):
+                graph = molecule.graph()
+                draw_graph(
+                    graph,
+                    fnme=join('graphs' ,'_'.join((self.name, str(i))) + '.png'),
+                )
 
         best_molecule = possible_capped_molecules[0]
         return best_molecule
@@ -249,7 +262,7 @@ class Molecule:
             'C': (0,),
             'H': (0,),
             'O': (0, -1,),
-            'N': (0,),
+            'N': (0, +1,),
         }
 
         possible_bond_orders_lists = product(
@@ -285,6 +298,17 @@ class Molecule:
         if len(acceptable_bond_orders_and_charges) != 1:
             print acceptable_bond_orders_and_charges
 
+        assert len(acceptable_bond_orders_and_charges) >= 1, 'Wrong bond_orders and charges: {0}'.format(acceptable_bond_orders_and_charges)
+
+        self.bond_orders = bond_orders
+        self.charges = charges
+
+    def netcharge(self):
+        try:
+            return sum(self.charges.values())
+        except:
+            raise Exception('Assign charges and bond_orders first.')
+
     def is_valid(self, bond_orders, charges):
         assert len(self.bonds) == len(bond_orders)
 
@@ -312,6 +336,7 @@ class Molecule:
                 )
             ],
         )
+
         return valid
 
 api = API(
@@ -384,10 +409,10 @@ def molecule_for_capped_dihedral_fragment(fragment):
             )
         ),
         bonds,
+        name=fragment.replace('|', '_'),
     )
 
     m = m.get_capped_molecule()
-    m.assign_bond_orders_and_charges()
     return m
 
 def get_matches():
@@ -439,17 +464,6 @@ def get_matches():
         matches[fragment] = best_molid
 
         safe_fragment_name = fragment=fragment.replace('|', '_')
-
-        if DRAW_GRAPHS:
-            from py_graphs.pdb import graph_from_pdb
-            from py_graphs.moieties import draw_graph
-            graph = molecule.graph()
-            draw_graph(
-                graph,
-                fnme='graphs/{fragment}.png'.format(
-                    fragment=safe_fragment_name,
-                ),
-            )
 
         with open('pdbs/{fragment}.pdb'.format(fragment=safe_fragment_name), 'w') as fh:
             fh.write(molecule.dummy_pdb())
