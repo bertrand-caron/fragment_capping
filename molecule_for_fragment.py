@@ -8,6 +8,9 @@ from StringIO import StringIO
 
 DRAW_GRAPHS = False
 
+def atom_desc(atom):
+    return atom['element'] + str(atom['valence'])
+
 class Molecule:
     FULL_VALENCES = {
         'C': 4,
@@ -33,9 +36,64 @@ class Molecule:
     def ids(self):
         return self.atoms.keys()
 
-    def cap_neighbour(self, atom_id):
-        atom_desc = self.element(atom_id) + str(self.valence(atom_id))
+    def __str__(self):
+        return 'Molecule; atoms={0}; bonds={1}'.format(self.atoms, self.bonds)
 
+    def capped_molecule_with(self, capping_scheme, atoms_need_capping):
+        from copy import deepcopy
+        capped_molecule = deepcopy(self)
+
+        for (atom, capping_strategy) in zip(atoms_need_capping, capping_scheme):
+            atom_id = atom['index']
+            new_atoms, fragment_bonds, new_valences = capping_strategy
+
+            last_used_id = sorted(capped_molecule.ids())[-1]
+            new_ids = map(
+                lambda (id, _): id + last_used_id + 1,
+                enumerate(new_atoms),
+            )
+            new_bonds = [
+                tuple(
+                    map(
+                        lambda id: atom_id if id == 0 else id + last_used_id,
+                        bond,
+                    ),
+                )
+                for bond in fragment_bonds
+            ]
+
+            capped_molecule.bonds += new_bonds
+
+            assert len(new_ids) == len(new_atoms) == len(new_valences)
+            for (new_id, new_atom, new_valence) in zip(new_ids, new_atoms, new_valences):
+                capped_molecule.atoms[new_id] = {
+                    'element': new_atom,
+                    'valence': new_valence,
+                    'index': new_id,
+                    'capped': True,
+                }
+
+        capped_molecule.check_valence()
+
+        return capped_molecule
+
+    def check_valence(self):
+        try:
+            for atom in self.atoms.values():
+                atom_id = atom['index']
+                assert atom['valence'] == sum([1 for bond in self.bonds if atom_id in bond]), 'Atom {2}: {0} != {1} (bonds={3})'.format(
+                    atom['valence'],
+                    sum([1 for bond in self.bonds if atom_id in bond]),
+                    atom,
+                    [bond for bond in self.bonds if atom_id in bond],
+                )
+        except:
+            print 'ERROR'
+            print 'Atoms are: {0}'.format(self.atoms)
+            print 'Bonds are: {0}'.format(self.bonds)
+            raise
+
+    def get_capped_molecule(self):
         Capping_Strategy = namedtuple('Capping_Strategy', 'new_atoms, new_bonds, new_valences')
 
         NO_CAP = Capping_Strategy((), (), ())
@@ -58,69 +116,26 @@ class Molecule:
             'N4': (H3_CAP,),
         }
 
-        #atoms_need_capping = [atom for atom in self.sorted_atoms() if (atom['element'] == Molecule.UNKNOWN)]
-        #capping_posibilities = product(
-        #    *[
-        #        CAPPING_OPTIONS[atom['element']]
-        #        for atom in atoms_need_capping
-        #    ]
-        #)
-
-        assert CAPPING_OPTIONS[atom_desc][0], atom_desc
-        new_atoms, fragment_bonds, new_valences = CAPPING_OPTIONS[atom_desc][0]
-
-        last_used_id = sorted(self.ids())[-1]
-        new_ids = map(
-            lambda (id, _): id + last_used_id + 1,
-            enumerate(new_atoms),
+        atoms_need_capping = [atom for atom in self.sorted_atoms() if not atom['capped']]
+        capping_schemes = product(
+            *[
+                CAPPING_OPTIONS[atom_desc(atom)]
+                for atom in atoms_need_capping
+            ]
         )
-        new_bonds = [
-            tuple(
-                map(
-                    lambda id: atom_id if id == 0 else id + last_used_id,
-                    bond,
-                ),
-            )
-            for bond in fragment_bonds
-        ]
 
-        self.bonds += new_bonds
+        possible_capped_molecules = sorted(
+            [
+                self.capped_molecule_with(capping_scheme, atoms_need_capping)
+                for capping_scheme in capping_schemes
+            ],
+            key=lambda mol: mol.n_atoms(),
+        )
 
-        assert len(new_ids) == len(new_atoms) == len(new_valences)
-        for (new_id, new_atom, new_valence) in zip(new_ids, new_atoms, new_valences):
-            self.atoms[new_id] = {
-                'element': new_atom,
-                'valence': new_valence,
-                'index': new_id,
-            }
+        print 'Possible capped molecules: {0}'.format([mol.formula() for mol in possible_capped_molecules])
 
-    def check_valence(self):
-        try:
-            for atom in self.atoms.values():
-                atom_id = atom['index']
-                assert atom['valence'] == sum([1 for bond in self.bonds if atom_id in bond]), 'Atom {2}: {0} != {1} (bonds={3})'.format(
-                    atom['valence'],
-                    sum([1 for bond in self.bonds if atom_id in bond]),
-                    atom,
-                    [bond for bond in self.bonds if atom_id in bond],
-                )
-        except:
-            print self.atoms
-            print self.bonds
-            raise
-
-    def cap_molecule(self, neighbours_id_1, neighbours_id_4):
-        for neighbour_id in (neighbours_id_1 + neighbours_id_4):
-            self.cap_neighbour(neighbour_id)
-
-
-        if False:
-            print map(
-                lambda (id_1, id_2): (self.element(id_1), self.element(id_2)),
-                self.bonds
-            )
-        self.check_valence()
-        return self.formula()
+        best_molecule = possible_capped_molecules[0]
+        return best_molecule
 
     def formula(self):
         elements =  [atom['element'] for atom in self.atoms.values()]
@@ -140,6 +155,9 @@ class Molecule:
                 ],
             ),
         )
+
+    def n_atoms(self):
+        return len(self.atoms)
 
     def dummy_pdb(self):
         from atb_helpers.pdb import PDB_TEMPLATE
@@ -349,14 +367,21 @@ def molecule_for_capped_dihedral_fragment(fragment):
         dict(
             zip(
                 ids,
-                [{'valence': valences[atom_id], 'element': elements[atom_id], 'index':atom_id,} for atom_id in ids],
+                [
+                    {
+                        'valence': valences[atom_id],
+                        'element': elements[atom_id],
+                        'index':atom_id,
+                        'capped': (atom_id not in (neighbours_id_1 + neighbours_id_4)),
+                    }
+                    for atom_id in ids],
 
             )
         ),
         bonds,
     )
 
-    m.cap_molecule(neighbours_id_1, neighbours_id_4)
+    m = m.get_capped_molecule()
     m.assign_bond_orders_and_charges()
     return m
 
@@ -364,7 +389,6 @@ def get_matches():
     matches = {}
 
     for (i, (fragment, count)) in enumerate(protein_fragments):
-
         print 'Running fragment {0}/{1} (count={2}): "{3}"'.format(i + 1, len(protein_fragments), count, fragment)
         molecule = molecule_for_capped_dihedral_fragment(fragment)
         #print molecule.inchi()
