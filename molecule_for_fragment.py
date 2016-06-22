@@ -36,44 +36,37 @@ class Molecule:
     def cap_neighbour(self, atom_id):
         atom_desc = self.element(atom_id) + str(self.valence(atom_id))
 
-        if atom_desc == 'H1':
-            new_atoms = []
-            fragment_bonds = []
-            new_valences = []
-        elif atom_desc == 'C4':
-            new_atoms = ['H'] * 3
-            fragment_bonds = [(0, 1), (0, 2), (0, 3)]
-            new_valences = [1] * 3
-        elif atom_desc == 'C3':
-            new_atoms = ['H']* 1 + ['C'] * 1 + ['H'] * 2
-            fragment_bonds = [(0, 1), (0, 2), (2, 3), (2, 4)]
-            new_valences = [1, 3, 1, 1]
-        elif atom_desc == 'N4':
-            new_atoms = ['H'] * 3
-            fragment_bonds = [(0, 1), (0, 2), (0, 3)]
-            new_valences = [1] * 3
-        elif atom_desc == 'N3':
-            new_atoms = ['H'] * 2
-            fragment_bonds = [(0, 1), (0, 2)]
-            new_valences = [1] * 2
-        elif atom_desc == 'N2':
-            new_atoms = ['C'] * 1 + ['H'] * 3
-            fragment_bonds = [(0, 1), (1, 2), (1, 3), (1, 4)]
-            new_valences = [4, 1, 1, 1]
-        elif atom_desc == 'O2':
-            new_atoms = ['H'] * 1
-            fragment_bonds = [(0, 1)]
-            new_valences = [1] * 1
-        elif atom_desc == 'O1':
-            new_atoms = []
-            fragment_bonds = []
-            new_valences = []
-        elif atom_desc == 'S2':
-            new_atoms = ['H'] * 1
-            fragment_bonds = [(0, 1)]
-            new_valences = [1] * 1
-        else:
-            raise Exception('No rules to cap fragment {0}'.format(atom_desc))
+        Capping_Strategy = namedtuple('Capping_Strategy', 'new_atoms, new_bonds, new_valences')
+
+        NO_CAP = Capping_Strategy((), (), ())
+        H_CAP = Capping_Strategy(('H',), ((0, 1),), (1,))
+        H2_CAP = Capping_Strategy(('H', 'H'), ((0, 1), (0, 2)), (1, 1))
+        H3_CAP = Capping_Strategy(('H', 'H', 'H'), ((0, 1), (0, 2), (0, 3)), (1, 1, 1))
+        H_CH2_CAP = Capping_Strategy(('H', 'C', 'H', 'H'), ((0, 1), (0, 2), (2, 3), (2, 4)), (1, 4, 1, 1))
+        CH3_CAP = Capping_Strategy(('C', 'H', 'H', 'H'), ((0, 1), (1, 2), (1, 3), (1, 4)), (4, 1, 1, 1))
+
+        CAPPING_OPTIONS = {
+            'H1': (NO_CAP,),
+            'O1': (NO_CAP,),
+            'O2': (H_CAP,),
+            'S1': (NO_CAP),
+            'S2': (H_CAP,),
+            'C4': (NO_CAP),
+            'C3': (H2_CAP, H_CH2_CAP),
+            'N2': (CH3_CAP,),
+            'N3': (H2_CAP,),
+            'N4': (H3_CAP,),
+        }
+
+        #atoms_need_capping = [atom for atom in self.sorted_atoms() if (atom['element'] == Molecule.UNKNOWN)]
+        #capping_posibilities = product(
+        #    *[
+        #        CAPPING_OPTIONS[atom['element']]
+        #        for atom in atoms_need_capping
+        #    ]
+        #)
+
+        new_atoms, fragment_bonds, new_valences = CAPPING_OPTIONS[atom_desc]
 
         last_used_id = sorted(self.ids())[-1]
         new_ids = map(
@@ -212,7 +205,13 @@ class Molecule:
 
         return g
 
-    def assign_bond_orders(self):
+    def sorted_atoms(self):
+        return [atom  for (atom_id, atom) in sorted(self.atoms.items())]
+
+    def sorted_atom_ids(self):
+        return [atom_id  for (atom_id, atom) in sorted(self.atoms.items())]
+
+    def assign_bond_orders_and_charges(self):
         POSSIBLE_BOND_ORDERS = {
             'S': (1, 2,),
             'C': (1, 2,),
@@ -240,14 +239,12 @@ class Molecule:
             ]
         )
 
-        sorted_atoms = [atom  for (atom_id, atom) in sorted(self.atoms.items())]
-        sorted_atoms_ids = [atom_id  for (atom_id, atom) in sorted(self.atoms.items())]
         possible_charges_dicts = map(
-            lambda charges: dict(zip(sorted_atoms_ids, charges)),
+            lambda charges: dict(zip(self.sorted_atoms_ids(), charges)),
             product(
                 *[
                     POSSIBLE_CHARGES[atom['element']]
-                    for atom in sorted_atoms
+                    for atom in self.sorted_atoms()
                 ]
             ),
         )
@@ -358,8 +355,8 @@ def molecule_for_capped_dihedral_fragment(fragment):
         bonds,
     )
 
-    formula = m.cap_molecule(neighbours_id_1, neighbours_id_4)
-    m.assign_bond_orders()
+    m.cap_molecule()
+    m.assign_bond_orders_and_charges()
     return m
 
 def get_matches():
