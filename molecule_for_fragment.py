@@ -49,9 +49,9 @@ class Molecule:
             'H1': (NO_CAP,),
             'O1': (NO_CAP,),
             'O2': (H_CAP,),
-            'S1': (NO_CAP),
+            'S1': (NO_CAP,),
             'S2': (H_CAP,),
-            'C4': (NO_CAP),
+            'C4': (H3_CAP,),
             'C3': (H2_CAP, H_CH2_CAP),
             'N2': (CH3_CAP,),
             'N3': (H2_CAP,),
@@ -66,7 +66,8 @@ class Molecule:
         #    ]
         #)
 
-        new_atoms, fragment_bonds, new_valences = CAPPING_OPTIONS[atom_desc]
+        assert CAPPING_OPTIONS[atom_desc][0], atom_desc
+        new_atoms, fragment_bonds, new_valences = CAPPING_OPTIONS[atom_desc][0]
 
         last_used_id = sorted(self.ids())[-1]
         new_ids = map(
@@ -240,7 +241,7 @@ class Molecule:
         )
 
         possible_charges_dicts = map(
-            lambda charges: dict(zip(self.sorted_atoms_ids(), charges)),
+            lambda charges: dict(zip(self.sorted_atom_ids(), charges)),
             product(
                 *[
                     POSSIBLE_CHARGES[atom['element']]
@@ -355,7 +356,7 @@ def molecule_for_capped_dihedral_fragment(fragment):
         bonds,
     )
 
-    m.cap_molecule()
+    m.cap_molecule(neighbours_id_1, neighbours_id_4)
     m.assign_bond_orders_and_charges()
     return m
 
