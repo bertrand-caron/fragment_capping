@@ -73,9 +73,11 @@ class Molecule:
                     'capped': True,
                 }
 
-        capped_molecule.check_valence()
-
-        return capped_molecule
+        try:
+            capped_molecule.check_valence()
+            return capped_molecule
+        except:
+            return None
 
     def check_valence(self):
         try:
@@ -125,10 +127,13 @@ class Molecule:
         )
 
         possible_capped_molecules = sorted(
-            [
-                self.capped_molecule_with(capping_scheme, atoms_need_capping)
-                for capping_scheme in capping_schemes
-            ],
+            filter(
+                lambda mol: mol is not None,
+                [
+                    self.capped_molecule_with(capping_scheme, atoms_need_capping)
+                    for capping_scheme in capping_schemes
+                ],
+            ),
             key=lambda mol: mol.n_atoms(),
         )
 
