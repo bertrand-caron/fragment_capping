@@ -221,6 +221,14 @@ class Molecule:
             'N': (1, 2,),
         }
 
+        POSSIBLE_CHARGES = {
+            'S': (0,),
+            'C': (0,),
+            'H': (0,),
+            'O': (0, -1,),
+            'N': (0,),
+        }
+
         possible_bond_orders_lists = product(
             *[
                 set.intersection(set(POSSIBLE_BOND_ORDERS[element_1]), set(POSSIBLE_BOND_ORDERS[element_2]))
@@ -231,11 +239,32 @@ class Molecule:
                 )
             ]
         )
-        acceptable_bond_orders = [zip(self.bonds, bond_orders) for bond_orders in possible_bond_orders_lists if self.is_valid(bond_orders)]
 
-        assert len(acceptable_bond_orders) == 1
+        sorted_atoms = [atom  for (atom_id, atom) in sorted(self.atoms.items())]
+        sorted_atoms_ids = [atom_id  for (atom_id, atom) in sorted(self.atoms.items())]
+        possible_charges_dicts = map(
+            lambda charges: dict(zip(sorted_atoms_ids, charges)),
+            product(
+                *[
+                    POSSIBLE_CHARGES[atom['element']]
+                    for atom in sorted_atoms
+                ]
+            ),
+        )
 
-    def is_valid(self, bond_orders):
+        acceptable_bond_orders_and_charges = [
+            (
+                zip(self.bonds, bond_orders),
+                charges,
+            )
+            for (bond_orders, charges) in product(possible_bond_orders_lists, possible_charges_dicts)
+            if self.is_valid(bond_orders, charges)
+        ]
+
+        if len(acceptable_bond_orders_and_charges) != 1:
+            print acceptable_bond_orders_and_charges
+
+    def is_valid(self, bond_orders, charges):
         assert len(self.bonds) == len(bond_orders)
 
         on_atom_id = lambda (atom_id, bond_order): atom_id
@@ -243,7 +272,7 @@ class Molecule:
 
         valid = all(
             [
-                sum(map(on_bond_order, group)) == Molecule.FULL_VALENCES[self.atoms[atom_id]['element']]
+                sum(map(on_bond_order, group)) == Molecule.FULL_VALENCES[self.atoms[atom_id]['element']] + charges[atom_id]
                 for (atom_id, group) in
                 groupby(
                     sorted(
