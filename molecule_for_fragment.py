@@ -8,6 +8,8 @@ from StringIO import StringIO
 
 DRAW_GRAPHS = True
 
+DEBUG = False
+
 def concat(list_of_lists):
     return reduce(
         lambda acc, e: acc + e,
@@ -38,9 +40,6 @@ class Molecule:
 
     def assert_use_neighbour_valences(self):
         assert self.use_neighbour_valences, 'ERROR: self.use_neighbour_valences is set to False'
-
-    def cap_atom(atom_id):
-        assert atom_id in self.atoms
 
     def valence(self, atom_id):
         self.assert_use_neighbour_valences()
@@ -80,7 +79,12 @@ class Molecule:
 
             capped_molecule.bonds += new_bonds
 
-            assert len(new_ids) == len(new_atoms) == len(new_valences)
+            assert len(new_ids) == len(new_atoms) == len(new_valences), 'Wrong dimensions: {0}, {1}, {2}'.format(
+                new_ids,
+                new_atoms,
+                new_valences,
+            )
+
             for (new_id, new_atom, new_valence) in zip(new_ids, new_atoms, new_valences):
                 capped_molecule.atoms[new_id] = {
                     'element': new_atom,
@@ -88,6 +92,11 @@ class Molecule:
                     'index': new_id,
                     'capped': True,
                 }
+            capped_molecule.atoms[atom_id]['capped'] = True
+
+        assert all([atom['capped'] for atom in capped_molecule.atoms.values()]), 'Some atoms were not capped: {0}'.format(
+            [atom for atom in capped_molecule.atoms.values() if not atom['capped']],
+        )
 
         if self.use_neighbour_valences:
             capped_molecule.check_valence()
@@ -96,7 +105,11 @@ class Molecule:
             capped_molecule.assign_bond_orders_and_charges()
             return capped_molecule
         except AssertionError as e:
-            print str(e)
+            if DEBUG:
+                print 'AssertionError for capped molecule {0}:\n{1}'.format(
+                    capped_molecule,
+                    str(e),
+                )
             return None
 
     def check_valence(self):
@@ -117,7 +130,7 @@ class Molecule:
             print 'Bonds are: {0}'.format(self.bonds)
             raise
 
-    def get_capped_molecule(self):
+    def get_best_capped_molecule(self):
         Capping_Strategy = namedtuple('Capping_Strategy', 'new_atoms, new_bonds, new_valences')
 
         NO_CAP = Capping_Strategy((), (), ())
@@ -140,6 +153,8 @@ class Molecule:
             'N4': (H3_CAP,),
         }
 
+        on_first_atom_desc_letter = lambda (atom_desc, capping_strategies): atom_desc[0]
+
         if not self.use_neighbour_valences:
             'Aggregate capping strategies for a given element.'
             CAPPING_OPTIONS = dict(
@@ -147,21 +162,35 @@ class Molecule:
                     (element, concat(map(lambda x: x[1], group)))
                     for (element, group) in
                     groupby(
-                        INDIVIDUAL_CAPPING_OPTIONS.items(),
-                        key=lambda (atom_desc, capping_strategies): atom_desc[0],
+                        sorted(INDIVIDUAL_CAPPING_OPTIONS.items(), key=on_first_atom_desc_letter),
+                        key=on_first_atom_desc_letter,
                     )
                 ]
             )
         else:
             CAPPING_OPTIONS = INDIVIDUAL_CAPPING_OPTIONS
 
+        if DEBUG:
+            print [(key, len(value)) for (key, value) in INDIVIDUAL_CAPPING_OPTIONS.items()]
+            print [(key, len(value)) for (key, value) in CAPPING_OPTIONS.items()]
+
         atoms_need_capping = [atom for atom in self.sorted_atoms() if not atom['capped']]
-        capping_schemes = product(
-            *[
-                CAPPING_OPTIONS[self.atom_desc(atom)]
-                for atom in atoms_need_capping
-            ]
+        capping_schemes = list(
+            product(
+                *[
+                    CAPPING_OPTIONS[self.atom_desc(atom)]
+                    for atom in atoms_need_capping
+                ]
+            ),
         )
+
+        if DEBUG:
+            print 'atoms_need_capping: {0}'.format(atoms_need_capping)
+            print 'capping_schemes: {0}'.format(capping_schemes)
+            print 'capping_options: {0}'.format([
+                len(CAPPING_OPTIONS[self.atom_desc(atom)])
+                for atom in atoms_need_capping
+            ])
 
         possible_capped_molecules = sorted(
             filter(
@@ -171,10 +200,14 @@ class Molecule:
                     for capping_strategies in capping_schemes
                 ],
             ),
-            key=lambda mol: (abs(mol.netcharge()), mol.n_atoms()),
+            key=lambda mol: (mol.net_abs_charges(), mol.n_atoms(), mol.double_bonds_fitness()),
         )
 
-        print 'Possible capped molecules: {0}'.format([(mol.formula(charge=True), mol.netcharge()) for mol in possible_capped_molecules])
+        print 'Possible capped molecules: {0} ({1}/{2})'.format(
+            [(mol.formula(charge=True), mol.net_abs_charges(), mol.double_bonds_fitness()) for mol in possible_capped_molecules],
+            len(possible_capped_molecules),
+            len(capping_schemes),
+        )
 
         if DRAW_GRAPHS:
             from py_graphs.pdb import graph_from_pdb
@@ -247,7 +280,7 @@ class Molecule:
         return io.getvalue()
 
     def representation(self, out_format):
-        assert out_format in ('smiles', 'inchi')
+        assert out_format in ('smiles', 'inchi'), 'Wrong representation format: {0}'.format(out_format)
 
         from atb_helpers.babel import babel_output
         return babel_output(
@@ -277,7 +310,10 @@ class Molecule:
         vertices = []
         for atom_index in sorted(self.atoms.keys()):
             v = g.add_vertex()
-            vertex_types[v] = '{element}{valence}'.format(**self.atoms[atom_index])
+            vertex_types[v] = '{element}{valence}'.format(
+                element=self.atoms[atom_index]['element'],
+                valence=self.atoms[atom_index]['valence'] if self.use_neighbour_valences else '',
+            )
             vertices.append(v)
 
         for (i, j) in self.bonds:
@@ -308,16 +344,20 @@ class Molecule:
             'N': (0, +1,),
         }
 
-        possible_bond_orders_lists = product(
-            *[
-                set.intersection(set(POSSIBLE_BOND_ORDERS[element_1]), set(POSSIBLE_BOND_ORDERS[element_2]))
-                for (element_1, element_2) in
-                map(
-                    lambda bond: (self.atoms[bond[0]]['element'], self.atoms[bond[1]]['element']),
-                    self.bonds,
-                )
-            ]
+        possible_bond_orders_lists = list(
+            product(
+                *[
+                    set.intersection(set(POSSIBLE_BOND_ORDERS[element_1]), set(POSSIBLE_BOND_ORDERS[element_2]))
+                    for (element_1, element_2) in
+                    map(
+                        lambda bond: (self.atoms[bond[0]]['element'], self.atoms[bond[1]]['element']),
+                        self.bonds,
+                    )
+                ]
+            ),
         )
+
+        assert len(possible_bond_orders_lists) >= 1, 'No possible bond orders found'
 
         possible_charges_dicts = map(
             lambda charges: dict(zip(self.sorted_atom_ids(), charges)),
@@ -329,24 +369,29 @@ class Molecule:
             ),
         )
 
-        acceptable_bond_orders_and_charges = [
-            (
-                zip(self.bonds, bond_orders),
-                charges,
-            )
-            for (bond_orders, charges) in product(possible_bond_orders_lists, possible_charges_dicts)
-            if self.is_valid(bond_orders, charges)
-        ]
+        assert len(possible_charges_dicts) >= 1, 'No possible charges assignment found'
 
-        if len(acceptable_bond_orders_and_charges) != 1:
-            print acceptable_bond_orders_and_charges
+        possible_bond_orders_and_charges = list(product(possible_bond_orders_lists, possible_charges_dicts))
 
-        assert len(acceptable_bond_orders_and_charges) >= 1, 'Wrong bond_orders and charges: {0}'.format(acceptable_bond_orders_and_charges)
+        acceptable_bond_orders_and_charges = sorted(
+            [
+                (
+                    zip(self.bonds, bond_orders),
+                    charges,
+                )
+                for (bond_orders, charges) in possible_bond_orders_and_charges
+                if self.is_valid(bond_orders, charges)
+            ],
+            key=lambda (_, charges): sum(map(abs, charges.values())),
+        )
 
-        self.bond_orders, self.charges = sorted(
-            acceptable_bond_orders_and_charges,
-            key=lambda (_, charges): abs(sum(charges)),
-        )[0]
+        if DEBUG:
+            if len(acceptable_bond_orders_and_charges) != 1:
+                print 'acceptable_bond_orders_and_charges: {0}'.format(acceptable_bond_orders_and_charges)
+
+        assert len(acceptable_bond_orders_and_charges) >= 1, 'No valid bond_orders and charges found amongst {0} tried.'.format(len(possible_bond_orders_and_charges))
+
+        self.bond_orders, self.charges = acceptable_bond_orders_and_charges[0]
 
     def netcharge(self):
         try:
@@ -354,8 +399,17 @@ class Molecule:
         except:
             raise Exception('Assign charges and bond_orders first.')
 
+    def net_abs_charges(self):
+        try:
+            return sum(map(abs, self.charges.values()))
+        except:
+            raise Exception('Assign charges and bond_orders first.')
+
     def is_valid(self, bond_orders, charges):
-        assert len(self.bonds) == len(bond_orders)
+        assert len(self.bonds) == len(bond_orders), 'Unmatched bonds and bond_orders: {0} != {1}'.format(
+            len(self.bonds),
+            len(bond_orders),
+        )
 
         on_atom_id = lambda (atom_id, bond_order): atom_id
         on_bond_order = lambda (atom_id, bond_order): bond_order
@@ -384,6 +438,34 @@ class Molecule:
 
         return valid
 
+    def double_bonds_fitness(self):
+        '''Sorted ASC (low fitness is better)'''
+
+        BEST_DOUBLE_BONDS = (
+            # From best, to worst
+            'CO',
+            'CN',
+            'CC',
+        )
+
+        grouped_double_bonds = dict([
+            (key, len(list(group)))
+            for (key, group) in
+            groupby(
+                sorted(
+                    [
+                        ''.join(
+                            sorted([self.atoms[atom_id]['element'] for atom_id in bond]),
+                        )
+                        for (bond, bond_order) in self.bond_orders
+                        if bond_order == 2
+                    ]
+                ),
+            )
+        ])
+        return tuple([(- grouped_double_bonds[double_bond_type] if double_bond_type in grouped_double_bonds else 0) for double_bond_type in BEST_DOUBLE_BONDS])
+
+
 api = API(
     host='http://scmb-atb.biosci.uq.edu.au/atb-uqbcaron', #'https://atb.uq.edu.au',
     debug=False,
@@ -410,7 +492,7 @@ def reduce_iterables(iterables):
 
 assert reduce_iterables([[1], [2], [3]]) == [1, 2, 3], reduce_iterables([[1]], [[2]], [[3]])
 
-def molecule_for_capped_dihedral_fragment(fragment):
+def best_capped_molecule_for_dihedral_fragment(fragment):
     assert fragment.count('|') == 3
     neighbours_1, atom_2, atom_3, neighbours_4 = fragment.split('|')
     neighbours_1, neighbours_4 = neighbours_1.split(','), neighbours_4.split(',')
@@ -457,7 +539,7 @@ def molecule_for_capped_dihedral_fragment(fragment):
         name=fragment.replace('|', '_'),
     )
 
-    m = m.get_capped_molecule()
+    m = m.get_best_capped_molecule()
     return m
 
 def get_matches():
@@ -465,7 +547,8 @@ def get_matches():
 
     for (i, (fragment, count)) in enumerate(protein_fragments):
         print 'Running fragment {0}/{1} (count={2}): "{3}"'.format(i + 1, len(protein_fragments), count, fragment)
-        molecule = molecule_for_capped_dihedral_fragment(fragment)
+
+        molecule = best_capped_molecule_for_dihedral_fragment(fragment)
         #print molecule.inchi()
         #print molecule.dummy_pdb()
 
@@ -491,7 +574,7 @@ def get_matches():
 
             try:
                 assert best_molecule.is_finished, 'Molecule is still running'
-                assert fragment in best_molecule.dihedral_fragments, 'Dihedral fragment not found in molecule. Maybe it is still running ?'
+                #assert fragment in best_molecule.dihedral_fragments, 'Dihedral fragment not found in molecule. Maybe it is still running ?'
                 assert set([atb_molecule['InChI'] for atb_molecule in molecules]) == set([best_molecule.inchi]), 'Several molecules with different InChI have been found: {0}'.format(
                     set([atb_molecule['InChI'] for atb_molecule in molecules]),
                 )
@@ -542,6 +625,11 @@ if __name__ == '__main__':
     from os.path import join, exists
     from math import sqrt, ceil
 
+    if True:
+        import re
+        protein_fragments = [(re.sub('[0-9]', '', fragment), count) for (fragment, count) in protein_fragments]
+
+
     matches = cached(get_matches, (), {})
     counts = dict(protein_fragments)
     print matches
@@ -573,7 +661,7 @@ if __name__ == '__main__':
         def indices_for_fig(n):
             return ((n // subplot_dim), n - (n // subplot_dim) * subplot_dim)
 
-        for (n, (fragment, molid)) in enumerate(sorted(matches.items(), key=lambda (fragment, _): counts[fragment], reverse=True)):
+        for (n, (fragment, molid)) in enumerate(sorted(matches.items(), key=lambda (fragment, _): (counts[fragment], fragment), reverse=True)):
             if molid in png_files:
                 image = Image.open(png_files[molid])
                 axarr[indices_for_fig(n)].imshow(image)
