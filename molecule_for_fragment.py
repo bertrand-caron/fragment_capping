@@ -2,14 +2,17 @@ from pickle import load
 from itertools import groupby, product
 
 from API_client.api import API
-from fragment_dihedrals.fragment_dihedral import element_valence_for_atom, on_asc_number_electron_then_asc_valence
+from fragment_dihedrals.fragment_dihedral import element_valence_for_atom, on_asc_number_electron_then_asc_valence, NO_VALENCE
 from collections import namedtuple
 from StringIO import StringIO
 
 DRAW_GRAPHS = True
 
-def atom_desc(atom):
-    return atom['element'] + str(atom['valence'])
+def concat(list_of_lists):
+    return reduce(
+        lambda acc, e: acc + e,
+        list_of_lists,
+    )
 
 class Molecule:
     FULL_VALENCES = {
@@ -25,10 +28,22 @@ class Molecule:
         self.bonds = bonds
         self.name = name
 
+        self.use_neighbour_valences = (True if all([atom['valence'] is not NO_VALENCE for atom in self.atoms.values()]) else False)
+
+    def atom_desc(self, atom):
+        if self.use_neighbour_valences:
+            return atom['element'] + str(atom['valence'])
+        else:
+            return atom['element']
+
+    def assert_use_neighbour_valences(self):
+        assert self.use_neighbour_valences, 'ERROR: self.use_neighbour_valences is set to False'
+
     def cap_atom(atom_id):
         assert atom_id in self.atoms
 
     def valence(self, atom_id):
+        self.assert_use_neighbour_valences()
         return self.atoms[atom_id]['valence']
 
     def element(self, atom_id):
@@ -40,11 +55,11 @@ class Molecule:
     def __str__(self):
         return 'Molecule; atoms={0}; bonds={1}'.format(self.atoms, self.bonds)
 
-    def capped_molecule_with(self, capping_scheme, atoms_need_capping):
+    def capped_molecule_with(self, capping_strategies, atoms_need_capping):
         from copy import deepcopy
         capped_molecule = deepcopy(self)
 
-        for (atom, capping_strategy) in zip(atoms_need_capping, capping_scheme):
+        for (atom, capping_strategy) in zip(atoms_need_capping, capping_strategies):
             atom_id = atom['index']
             new_atoms, fragment_bonds, new_valences = capping_strategy
 
@@ -69,13 +84,15 @@ class Molecule:
             for (new_id, new_atom, new_valence) in zip(new_ids, new_atoms, new_valences):
                 capped_molecule.atoms[new_id] = {
                     'element': new_atom,
-                    'valence': new_valence,
+                    'valence': new_valence if self.use_neighbour_valences else NO_VALENCE,
                     'index': new_id,
                     'capped': True,
                 }
 
-        try:
+        if self.use_neighbour_valences:
             capped_molecule.check_valence()
+
+        try:
             capped_molecule.assign_bond_orders_and_charges()
             return capped_molecule
         except AssertionError as e:
@@ -83,6 +100,8 @@ class Molecule:
             return None
 
     def check_valence(self):
+        self.assert_use_neighbour_valences()
+
         try:
             for atom in self.atoms.values():
                 atom_id = atom['index']
@@ -108,7 +127,7 @@ class Molecule:
         H_CH2_CAP = Capping_Strategy(('H', 'C', 'H', 'H'), ((0, 1), (0, 2), (2, 3), (2, 4)), (1, 3, 1, 1))
         CH3_CAP = Capping_Strategy(('C', 'H', 'H', 'H'), ((0, 1), (1, 2), (1, 3), (1, 4)), (4, 1, 1, 1))
 
-        CAPPING_OPTIONS = {
+        INDIVIDUAL_CAPPING_OPTIONS = {
             'H1': (NO_CAP,),
             'O1': (NO_CAP,),
             'O2': (H_CAP,),
@@ -121,10 +140,25 @@ class Molecule:
             'N4': (H3_CAP,),
         }
 
+        if not self.use_neighbour_valences:
+            'Aggregate capping strategies for a given element.'
+            CAPPING_OPTIONS = dict(
+                [
+                    (element, concat(map(lambda x: x[1], group)))
+                    for (element, group) in
+                    groupby(
+                        INDIVIDUAL_CAPPING_OPTIONS.items(),
+                        key=lambda (atom_desc, capping_strategies): atom_desc[0],
+                    )
+                ]
+            )
+        else:
+            CAPPING_OPTIONS = INDIVIDUAL_CAPPING_OPTIONS
+
         atoms_need_capping = [atom for atom in self.sorted_atoms() if not atom['capped']]
         capping_schemes = product(
             *[
-                CAPPING_OPTIONS[atom_desc(atom)]
+                CAPPING_OPTIONS[self.atom_desc(atom)]
                 for atom in atoms_need_capping
             ]
         )
@@ -133,8 +167,8 @@ class Molecule:
             filter(
                 lambda mol: mol is not None,
                 [
-                    self.capped_molecule_with(capping_scheme, atoms_need_capping)
-                    for capping_scheme in capping_schemes
+                    self.capped_molecule_with(capping_strategies, atoms_need_capping)
+                    for capping_strategies in capping_schemes
                 ],
             ),
             key=lambda mol: (abs(mol.netcharge()), mol.n_atoms()),
