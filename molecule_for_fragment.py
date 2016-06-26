@@ -472,9 +472,6 @@ api = API(
     api_format='pickle',
 )
 
-with open('cache/protein_fragments.pickle') as fh:
-    protein_fragments = load(fh)
-
 def truncated_molecule(molecule):
     return dict(
         n_atoms=molecule.n_atoms,
@@ -617,16 +614,15 @@ def get_matches():
             )
     return matches
 
-if __name__ == '__main__':
-    from cache import cached
-    from cairosvg import svg2png
-    from os.path import join, exists
-    from math import sqrt, ceil
+def parse_args():
+    from argparse import ArgumentParser
 
-    if True:
-        import re
-        protein_fragments = [(re.sub('[0-9]', '', fragment), count) for (fragment, count) in protein_fragments]
+    parser = ArgumentParser()
+    parser.add_argument('--only-id', type=int, nargs=1, help='Rerun a single fragment')
 
+    return parser.parse_args()
+
+def generate_collage(protein_fragments):
 
     matches = cached(get_matches, (), {})
     counts = dict(protein_fragments)
@@ -678,3 +674,31 @@ if __name__ == '__main__':
         fig.savefig('collage.png')
 
     figure_collage()
+
+REMOVE_VALENCES = True
+
+def get_protein_fragments():
+    with open('cache/protein_fragments.pickle') as fh:
+        protein_fragments = load(fh)
+
+    if REMOVE_VALENCES:
+        from re import sub
+        protein_fragments = [(sub('[0-9]', '', fragment), count) for (fragment, count) in protein_fragments]
+
+    return protein_fragments
+
+
+if __name__ == '__main__':
+    from cache import cached
+    from cairosvg import svg2png
+    from os.path import join, exists
+    from math import sqrt, ceil
+
+    args = parse_args()
+    protein_fragments = get_protein_fragments()
+
+    if args.only_id:
+        pass
+    else:
+        generate_collage(protein_fragments)
+
