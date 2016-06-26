@@ -543,7 +543,7 @@ def best_capped_molecule_for_dihedral_fragment(fragment):
     return m
 
 def get_matches():
-    matches = {}
+    matches_dict = {}
 
     for (i, (fragment, count)) in enumerate(protein_fragments):
         print 'Running fragment {0}/{1} (count={2}): "{3}"'.format(i + 1, len(protein_fragments), count, fragment)
@@ -589,7 +589,7 @@ def get_matches():
             print molecule.dummy_pdb()
             best_molid = None
 
-        matches[fragment] = best_molid
+        matches_dict[fragment] = best_molid
 
         safe_fragment_name = fragment=fragment.replace('|', '_')
 
@@ -599,19 +599,17 @@ def get_matches():
         print
 
 
-    print dict(
-        [
-            (fragment, matches[fragment])
-            for (fragment, count) in
-            sorted(
-                protein_fragments,
-                key=lambda (fragment, count): count,
-                reverse=True,
-            )
-        ],
-    )
+    matches = [
+        (fragment, matches_dict[fragment])
+        for (fragment, count) in
+        sorted(
+            protein_fragments,
+            key=lambda (fragment, count): (count, fragment),
+            reverse=True,
+        )
+    ]
 
-    for (fragment, molid) in matches.items():
+    for (fragment, molid) in matches:
         if molid:
             print 'python3 test.py --download {molid} --submit --dihedral-fragment "{dihedral_fragment}"'.format(
                 molid=molid,
@@ -649,7 +647,7 @@ if __name__ == '__main__':
             )
         return png_file
 
-    png_files = dict([(molid, png_file_for(molid)) for molid in matches.values() if molid is not None])
+    png_files = dict([(molid, png_file_for(molid)) for (_, molid) in matches if molid is not None])
 
     def figure_collage():
         import matplotlib.pyplot as p
@@ -661,12 +659,12 @@ if __name__ == '__main__':
         def indices_for_fig(n):
             return ((n // subplot_dim), n - (n // subplot_dim) * subplot_dim)
 
-        for (n, (fragment, molid)) in enumerate(sorted(matches.items(), key=lambda (fragment, _): (counts[fragment], fragment), reverse=True)):
+        for (n, (fragment, molid)) in enumerate(matches):
             if molid in png_files:
                 image = Image.open(png_files[molid])
                 axarr[indices_for_fig(n)].imshow(image)
             axarr[indices_for_fig(n)].set_title(
-                fragment + (' (molid={0})'.format(molid) if molid in png_files else ''),
+                fragment + (' (id={1}, molid={0})'.format(molid, n)),
                 fontsize=11,
                 fontname='Andale Mono',
             )
