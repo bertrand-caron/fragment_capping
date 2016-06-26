@@ -539,71 +539,70 @@ def best_capped_molecule_for_dihedral_fragment(fragment):
     m = m.get_best_capped_molecule()
     return m
 
-def get_matches():
-    matches_dict = {}
-
-    for (i, (fragment, count)) in enumerate(protein_fragments):
-        print 'Running fragment {0}/{1} (count={2}): "{3}"'.format(i + 1, len(protein_fragments), count, fragment)
-
-        molecule = best_capped_molecule_for_dihedral_fragment(fragment)
-        #print molecule.inchi()
-        #print molecule.dummy_pdb()
-
-        api_response = api.Molecules.structure_search(
-            netcharge='*',
-            structure_format='pdb',
-            structure=molecule.dummy_pdb(),
-            return_type='molecules',
+def cap_fragment(fragment, count=None, i=None, fragments=None):
+    if all([x is not None for x in (count, i, fragments)]):
+        print 'Running fragment {0}/{1} (count={2}): "{3}"'.format(
+            i + 1,
+            len(fragments),
+            count,
+            fragment,
         )
 
-        molecules = api_response['matches']
+    molecule = best_capped_molecule_for_dihedral_fragment(fragment)
+    #print molecule.inchi()
+    #print molecule.dummy_pdb()
 
-        if molecules:
-            print [atb_molecule['molid'] for atb_molecule in molecules]
-            best_molid = sorted(
-                molecules,
-                key=lambda atb_molecule: int(atb_molecule['molid']),
-            )[0]['molid']
+    api_response = api.Molecules.structure_search(
+        netcharge='*',
+        structure_format='pdb',
+        structure=molecule.dummy_pdb(),
+        return_type='molecules',
+    )
 
-            best_molecule = api.Molecules.molid(
-                molid=best_molid,
+    molecules = api_response['matches']
+
+    if molecules:
+        print [atb_molecule['molid'] for atb_molecule in molecules]
+        best_molid = sorted(
+            molecules,
+            key=lambda atb_molecule: int(atb_molecule['molid']),
+        )[0]['molid']
+
+        best_molecule = api.Molecules.molid(
+            molid=best_molid,
+        )
+
+        try:
+            assert best_molecule.is_finished, 'Molecule is still running'
+            #assert fragment in best_molecule.dihedral_fragments, 'Dihedral fragment not found in molecule. Maybe it is still running ?'
+            assert set([atb_molecule['InChI'] for atb_molecule in molecules]) == set([best_molecule.inchi]), 'Several molecules with different InChI have been found: {0}'.format(
+                set([atb_molecule['InChI'] for atb_molecule in molecules]),
             )
 
-            try:
-                assert best_molecule.is_finished, 'Molecule is still running'
-                #assert fragment in best_molecule.dihedral_fragments, 'Dihedral fragment not found in molecule. Maybe it is still running ?'
-                assert set([atb_molecule['InChI'] for atb_molecule in molecules]) == set([best_molecule.inchi]), 'Several molecules with different InChI have been found: {0}'.format(
-                    set([atb_molecule['InChI'] for atb_molecule in molecules]),
-                )
-
-            except AssertionError as e:
-                print e
-                best_molid = None
-
-        else:
-            print 'Capped fragment not found in ATB.'
-            print molecule.formula()
-            print molecule.dummy_pdb()
+        except AssertionError as e:
+            print e
             best_molid = None
 
-        matches_dict[fragment] = best_molid
+    else:
+        print 'Capped fragment not found in ATB.'
+        print molecule.formula()
+        print molecule.dummy_pdb()
+        best_molid = None
 
-        safe_fragment_name = fragment=fragment.replace('|', '_')
+    print
 
-        with open('pdbs/{fragment}.pdb'.format(fragment=safe_fragment_name), 'w') as fh:
-            fh.write(molecule.dummy_pdb())
+    safe_fragment_name = fragment.replace('|', '_')
 
-        print
+    with open('pdbs/{fragment}.pdb'.format(fragment=safe_fragment_name), 'w') as fh:
+        fh.write(molecule.dummy_pdb())
 
+    return best_molid
 
+def get_matches():
     matches = [
-        (fragment, matches_dict[fragment])
-        for (fragment, count) in
-        sorted(
-            protein_fragments,
-            key=lambda (fragment, count): (count, fragment),
-            reverse=True,
-        )
+        (fragment, cap_fragment(fragment, count=count, i=i, fragments=protein_fragments))
+        for (i, (fragment, count)) in
+        enumerate(protein_fragments)
     ]
 
     for (fragment, molid) in matches:
@@ -622,11 +621,17 @@ def parse_args():
 
     return parser.parse_args()
 
-def generate_collage(protein_fragments):
+def generate_collage():
 
     matches = cached(get_matches, (), {})
     counts = dict(protein_fragments)
+
     print matches
+    print 'INFO: Assigned {0}/{1} molecules (missing_ids = {2})'.format(
+        len(filter(lambda (_, molid): molid is not None, matches)),
+        len(matches),
+        [i for (i, (fragment, molid)) in enumerate(matches) if molid is None],
+    )
 
     def png_file_for(molid):
         PNG_DIR = 'pngs'
@@ -687,7 +692,6 @@ def get_protein_fragments():
 
     return protein_fragments
 
-
 if __name__ == '__main__':
     from cache import cached
     from cairosvg import svg2png
@@ -698,7 +702,7 @@ if __name__ == '__main__':
     protein_fragments = get_protein_fragments()
 
     if args.only_id:
-        pass
+        cap_fragment()
     else:
-        generate_collage(protein_fragments)
+        generate_collage()
 
