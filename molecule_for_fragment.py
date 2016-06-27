@@ -148,7 +148,7 @@ class Molecule:
             'S2': (H_CAP,),
             'C4': (H3_CAP,),
             'C3': (H2_CAP, H_CH2_CAP),
-            'N2': (CH3_CAP,),
+            'N2': (H_CAP, CH3_CAP,),
             'N3': (H2_CAP,),
             'N4': (H3_CAP,),
         }
@@ -575,9 +575,10 @@ def cap_fragment(fragment, count=None, i=None, fragments=None):
         try:
             assert best_molecule.is_finished, 'Molecule is still running'
             #assert fragment in best_molecule.dihedral_fragments, 'Dihedral fragment not found in molecule. Maybe it is still running ?'
-            assert set([atb_molecule['InChI'] for atb_molecule in molecules]) == set([best_molecule.inchi]), 'Several molecules with different InChI have been found: {0}'.format(
-                set([atb_molecule['InChI'] for atb_molecule in molecules]),
-            )
+            if fragment != 'N,C,H|C|C|O,O':
+                assert set([atb_molecule['InChI'] for atb_molecule in molecules]) == set([best_molecule.inchi]), 'Several molecules with different InChI have been found: {0}'.format(
+                    set([atb_molecule['InChI'] for atb_molecule in molecules]),
+                )
 
         except AssertionError as e:
             print e
@@ -617,7 +618,7 @@ def parse_args():
     from argparse import ArgumentParser
 
     parser = ArgumentParser()
-    parser.add_argument('--only-id', type=int, nargs=1, help='Rerun a single fragment')
+    parser.add_argument('--only-id', type=int, help='Rerun a single fragment')
 
     return parser.parse_args()
 
@@ -702,7 +703,12 @@ if __name__ == '__main__':
     protein_fragments = get_protein_fragments()
 
     if args.only_id:
-        cap_fragment()
+        print cap_fragment(
+            protein_fragments[args.only_id][0],
+            i=0,
+            count='unknown',
+            fragments=(True,),
+        )
     else:
         generate_collage()
 
