@@ -54,6 +54,12 @@ class Molecule:
     def __str__(self):
         return 'Molecule; atoms={0}; bonds={1}'.format(self.atoms, self.bonds)
 
+    def add_atom(self, atom):
+        highest_id = max(self.atoms.keys())
+        atom_id = highest_id + 1
+        self.atoms[atom_id] = dict(atom.items() + dict(index=atom_id).items())
+        return atom_id
+
     def capped_molecule_with(self, capping_strategies, atoms_need_capping):
         from copy import deepcopy
         capped_molecule = deepcopy(self)
@@ -260,12 +266,12 @@ class Molecule:
         for (i, atom) in enumerate(sorted(self.atoms.values(), key=lambda atom: atom['index'])):
             print >> io, PDB_TEMPLATE.format(
                 'HETATM',
-                i,
+                i + 1,
                 'D',
                 'R',
                 '',
-                i,
-                0.,
+                i + 1,
+                1. * i,
                 0.,
                 0.,
                 '',
@@ -275,7 +281,7 @@ class Molecule:
             )
 
         for bond in self.bonds:
-            print >> io, ' '.join(['CONECT'] + [str(id) for id in bond])
+            print >> io, ' '.join(['CONECT'] + [str(id + 1) for id in bond])
 
         return io.getvalue()
 
@@ -489,10 +495,18 @@ def reduce_iterables(iterables):
 
 assert reduce_iterables([[1], [2], [3]]) == [1, 2, 3], reduce_iterables([[1]], [[2]], [[3]])
 
-def best_capped_molecule_for_dihedral_fragment(fragment):
-    assert fragment.count('|') == 3
-    neighbours_1, atom_2, atom_3, neighbours_4 = fragment.split('|')
-    neighbours_1, neighbours_4 = neighbours_1.split(','), neighbours_4.split(',')
+def best_capped_molecule_for_dihedral_fragment(fragment_str):
+    if fragment_str.count('|') == 3:
+        neighbours_1, atom_2, atom_3, neighbours_4 = fragment_str.split('|')
+        cycles = []
+        neighbours_1, neighbours_4 = neighbours_1.split(','), neighbours_4.split(',')
+    elif fragment_str.count('|') == 4:
+        neighbours_1, atom_2, atom_3, neighbours_4, cycles = fragment_str.split('|')
+        neighbours_1, neighbours_4, cycles = neighbours_1.split(','), neighbours_4.split(','), cycles.split(',')
+    else:
+        raise Exception('Invalid fragment_str: "{0}"'.format(fragment_str))
+
+    print cycles
 
     ids = [n for (n, _) in enumerate(neighbours_1 + [atom_2, atom_3] + neighbours_4)]
 
@@ -533,10 +547,34 @@ def best_capped_molecule_for_dihedral_fragment(fragment):
             )
         ),
         bonds,
-        name=fragment.replace('|', '_'),
+        name=fragment_str.replace('|', '_'),
     )
 
+    print m
+    for (i, n, j) in map(lambda cycle: map(int, cycle), cycles):
+        i_id, j_id = neighbours_id_1[i], neighbours_id_4[j]
+        if n == 0:
+            # i and j are actually the same atoms
+            del m.atoms[j_id]
+            replace_j_by_i = lambda x: i_id if x == j_id else x
+            m.bonds = [
+                map(replace_j_by_i, bond)
+                for bond in m.bonds
+            ]
+        else:
+            NEW_ATOM_ID = -1
+            NEW_ATOM = {
+                'valence': NO_VALENCE,
+                'element': 'C',
+                'index': NEW_ATOM_ID, # This will get overwritten by Molecule.add_atom
+                'capped': False,
+            }
+            atom_chain_id = [i_id] + [m.add_atom(NEW_ATOM) for i in range(n - 1)] + [j_id]
+            new_bonds = zip(atom_chain_id[:-1], atom_chain_id[1:])
+            m.bonds += new_bonds
+
     m = m.get_best_capped_molecule()
+    print m
     return m
 
 def cap_fragment(fragment, count=None, i=None, fragments=None):
@@ -605,13 +643,6 @@ def get_matches():
         for (i, (fragment, count)) in
         enumerate(protein_fragments)
     ]
-
-    for (fragment, molid) in matches:
-        if molid:
-            print 'python3 test.py --download {molid} --submit --dihedral-fragment "{dihedral_fragment}"'.format(
-                molid=molid,
-                dihedral_fragment=fragment,
-            )
     return matches
 
 def parse_args():
@@ -626,6 +657,13 @@ def generate_collage():
 
     matches = cached(get_matches, (), {})
     counts = dict(protein_fragments)
+
+    for (fragment, molid) in matches:
+        if molid:
+            print 'python3 test.py --download {molid} --submit --dihedral-fragment "{dihedral_fragment}"'.format(
+                molid=molid,
+                dihedral_fragment=fragment,
+            )
 
     print matches
     print 'INFO: Assigned {0}/{1} molecules (missing_ids = {2})'.format(
@@ -692,6 +730,12 @@ def get_protein_fragments():
         protein_fragments = [(sub('[0-9]', '', fragment), count) for (fragment, count) in protein_fragments]
 
     return protein_fragments
+
+def test_cyclic_fragments():
+    #print cap_fragment('C,H,H|C|C|C,H,H|000')
+    print cap_fragment('C,H,H|C|C|C,H,H|010')
+    print cap_fragment('C,H,H|C|C|C,H,H|020')
+    print cap_fragment('C,H,H|C|C|C,H,H|030')
 
 if __name__ == '__main__':
     from cache import cached
