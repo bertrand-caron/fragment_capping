@@ -1,7 +1,8 @@
 from pickle import load
 from itertools import groupby, product
+from operator import itemgetter
 
-from API_client.api import API
+from API_client.api import API, HTTPError
 from fragment_dihedrals.fragment_dihedral import element_valence_for_atom, on_asc_number_electron_then_asc_valence, NO_VALENCE
 from collections import namedtuple
 from StringIO import StringIO
@@ -229,6 +230,7 @@ class Molecule:
                 print 'ERROR: Could not plot graphs (error was: {0})'.format(
                     str(e),
                 )
+                raise
 
         best_molecule = possible_capped_molecules[0]
         return best_molecule
@@ -268,31 +270,40 @@ class Molecule:
         from atb_helpers.pdb import PDB_TEMPLATE, CONECT_TEMPLATE, pdb_conect_line
         io = StringIO()
 
-        def shift_one(x):
-            return x + 1
+        ordered_atoms = sorted(
+            self.atoms.values(),
+            key=lambda atom: atom['index'],
+        )
 
-        for (i, atom) in enumerate(sorted(self.atoms.values(), key=lambda atom: atom['index'])):
+        pdb_ids = dict(
+            zip(
+                [atom['index'] for atom in ordered_atoms],
+                range(1, len(ordered_atoms) + 1),
+            ),
+        )
+
+        for (atom_index, pdb_id) in sorted(pdb_ids.items(), key=itemgetter(1)):
             print >> io, PDB_TEMPLATE.format(
                 'HETATM',
-                shift_one(i),
+                pdb_id,
                 'D',
                 'R',
                 '',
-                shift_one(i),
-                1. * i,
+                pdb_id,
+                1. * pdb_id,
                 0.,
                 0.,
                 '',
                 '',
-                atom['element'].title(),
+                self.atoms[atom_index]['element'].title(),
                 '',
             )
 
-        for (i, atom) in enumerate(sorted(self.atoms.values(), key=lambda atom: atom['index'])):
+        for (atom_index, pdb_id) in sorted(pdb_ids.items(), key=itemgetter(1)):
             print >> io, pdb_conect_line(
-                [shift_one(atom['index'])]
+                [pdb_id]
                 +
-                [shift_one(bond[0] if bond[1] == atom['index'] else bond[1]) for bond in self.bonds if atom['index'] in bond]
+                [pdb_ids[bond[0] if bond[1] == atom_index else bond[1]] for bond in self.bonds if atom_index in bond]
             )
 
         return io.getvalue()
@@ -325,14 +336,14 @@ class Molecule:
         vertex_types = g.new_vertex_property("string")
         g.vertex_properties['type'] = vertex_types
 
-        vertices = []
+        vertices = {}
         for atom_index in sorted(self.atoms.keys()):
             v = g.add_vertex()
             vertex_types[v] = '{element}{valence}'.format(
                 element=self.atoms[atom_index]['element'],
                 valence=self.atoms[atom_index]['valence'] if self.use_neighbour_valences else '',
             )
-            vertices.append(v)
+            vertices[atom_index] = v
 
         for (i, j) in self.bonds:
             g.add_edge(vertices[i], vertices[j])
@@ -600,12 +611,16 @@ def cap_fragment(fragment, count=None, i=None, fragments=None):
     #print molecule.inchi()
     #print molecule.dummy_pdb()
 
-    api_response = api.Molecules.structure_search(
-        netcharge='*',
-        structure_format='pdb',
-        structure=molecule.dummy_pdb(),
-        return_type='molecules',
-    )
+    try:
+        api_response = api.Molecules.structure_search(
+            netcharge='*',
+            structure_format='pdb',
+            structure=molecule.dummy_pdb(),
+            return_type='molecules',
+        )
+    except HTTPError:
+        print molecule.dummy_pdb()
+        raise
 
     molecules = api_response['matches']
 
@@ -754,7 +769,6 @@ if __name__ == '__main__':
     from math import sqrt, ceil
 
     test_cyclic_fragments()
-    exit()
 
     args = parse_args()
     protein_fragments = get_protein_fragments()
