@@ -265,17 +265,20 @@ class Molecule:
         return len(self.atoms)
 
     def dummy_pdb(self):
-        from atb_helpers.pdb import PDB_TEMPLATE
+        from atb_helpers.pdb import PDB_TEMPLATE, CONECT_TEMPLATE, pdb_conect_line
         io = StringIO()
+
+        def shift_one(x):
+            return x + 1
 
         for (i, atom) in enumerate(sorted(self.atoms.values(), key=lambda atom: atom['index'])):
             print >> io, PDB_TEMPLATE.format(
                 'HETATM',
-                i + 1,
+                shift_one(i),
                 'D',
                 'R',
                 '',
-                i + 1,
+                shift_one(i),
                 1. * i,
                 0.,
                 0.,
@@ -285,8 +288,12 @@ class Molecule:
                 '',
             )
 
-        for bond in self.bonds:
-            print >> io, ' '.join(['CONECT'] + [str(id + 1) for id in bond])
+        for (i, atom) in enumerate(sorted(self.atoms.values(), key=lambda atom: atom['index'])):
+            print >> io, pdb_conect_line(
+                [shift_one(atom['index'])]
+                +
+                [shift_one(bond[0] if bond[1] == atom['index'] else bond[1]) for bond in self.bonds if atom['index'] in bond]
+            )
 
         return io.getvalue()
 
