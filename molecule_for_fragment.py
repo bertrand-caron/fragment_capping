@@ -216,13 +216,18 @@ class Molecule:
         )
 
         if DRAW_GRAPHS:
-            from py_graphs.pdb import graph_from_pdb
-            from py_graphs.moieties import draw_graph
-            for (i, molecule) in enumerate(possible_capped_molecules):
-                graph = molecule.graph()
-                draw_graph(
-                    graph,
-                    fnme=join('graphs' ,'_'.join((self.name, str(i))) + '.png'),
+            try:
+                from py_graphs.pdb import graph_from_pdb
+                from py_graphs.moieties import draw_graph
+                for (i, molecule) in enumerate(possible_capped_molecules):
+                    graph = molecule.graph()
+                    draw_graph(
+                        graph,
+                        fnme=join('graphs' ,'_'.join((self.name, str(i))) + '.png'),
+                    )
+            except Exception as e:
+                print 'ERROR: Could not plot graphs (error was: {0})'.format(
+                    str(e),
                 )
 
         best_molecule = possible_capped_molecules[0]
