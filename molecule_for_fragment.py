@@ -518,8 +518,6 @@ def best_capped_molecule_for_dihedral_fragment(fragment_str):
     else:
         raise Exception('Invalid fragment_str: "{0}"'.format(fragment_str))
 
-    print cycles
-
     ids = [n for (n, _) in enumerate(neighbours_1 + [atom_2, atom_3] + neighbours_4)]
 
     neighbours_id_1, atom_id_2, atom_id_3, neighbours_id_4 = ids[0:len(neighbours_1)], ids[len(neighbours_1)], ids[len(neighbours_1) + 1], ids[len(neighbours_1) + 2:]
@@ -744,7 +742,7 @@ def get_protein_fragments():
     return protein_fragments
 
 def test_cyclic_fragments():
-    #print cap_fragment('C,H,H|C|C|C,H,H|000')
+    print cap_fragment('C,H,H|C|C|C,H,H|000')
     print cap_fragment('C,H,H|C|C|C,H,H|010')
     print cap_fragment('C,H,H|C|C|C,H,H|020')
     print cap_fragment('C,H,H|C|C|C,H,H|030')
@@ -754,6 +752,9 @@ if __name__ == '__main__':
     from cairosvg import svg2png
     from os.path import join, exists
     from math import sqrt, ceil
+
+    test_cyclic_fragments()
+    exit()
 
     args = parse_args()
     protein_fragments = get_protein_fragments()
