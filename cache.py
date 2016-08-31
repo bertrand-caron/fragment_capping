@@ -30,5 +30,5 @@ if __name__ == '__main__':
     def add(a, b, debug=False):
         return a + b
 
-    print cached(add, (1, 2), dict(debug=True))
-    print cached(add, (1, 2), dict(debug=True))
+    print(cached(add, (1, 2), dict(debug=True)))
+    print(cached(add, (1, 2), dict(debug=True)))
