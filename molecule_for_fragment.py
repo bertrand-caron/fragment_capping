@@ -1,11 +1,17 @@
 from pickle import load
 from itertools import groupby, product
+from math import sqrt, ceil
+from os.path import join, exists
+from io import StringIO
+from functools import reduce
 
+from cache import cached
 from API_client.api import API
 from fragment_dihedrals.fragment_dihedral import element_valence_for_atom, on_asc_number_electron_then_asc_valence, NO_VALENCE
 from collections import namedtuple
-from io import StringIO
-from functools import reduce
+
+from cairosvg import svg2png
+from typing import Optional
 
 DRAW_GRAPHS = False
 
@@ -694,18 +700,12 @@ def get_protein_fragments():
 
     return protein_fragments
 
-if __name__ == '__main__':
-    from cache import cached
-    from cairosvg import svg2png
-    from os.path import join, exists
-    from math import sqrt, ceil
-
-    args = parse_args()
+def main(only_id: Optional[int] = None):
     protein_fragments = get_protein_fragments()
 
-    if args.only_id:
+    if only_id:
         print(cap_fragment(
-            protein_fragments[args.only_id][0],
+            protein_fragments[only_id][0],
             i=0,
             count='unknown',
             fragments=(True,),
@@ -713,3 +713,6 @@ if __name__ == '__main__':
     else:
         generate_collage()
 
+if __name__ == '__main__':
+    args = parse_args()
+    main(only_id=args.only_id)
