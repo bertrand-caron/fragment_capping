@@ -4,9 +4,10 @@ from math import sqrt, ceil
 from os.path import join, exists
 from io import StringIO
 from functools import reduce
+from operator import itemgetter
 
 from cache import cached
-from API_client.api import API
+from API_client.api import API, HTTPError
 from fragment_dihedrals.fragment_dihedral import element_valence_for_atom, on_asc_number_electron_then_asc_valence, NO_VALENCE
 from collections import namedtuple
 
@@ -60,6 +61,12 @@ class Molecule:
 
     def __str__(self):
         return 'Molecule; atoms={0}; bonds={1}'.format(self.atoms, self.bonds)
+
+    def add_atom(self, atom):
+        highest_id = max(self.atoms.keys())
+        atom_id = highest_id + 1
+        self.atoms[atom_id] = dict(list(atom.items()) + list(dict(index=atom_id).items()))
+        return atom_id
 
     def capped_molecule_with(self, capping_strategies, atoms_need_capping):
         from copy import deepcopy
@@ -217,14 +224,22 @@ class Molecule:
         ))
 
         if DRAW_GRAPHS:
-            from py_graphs.pdb import graph_from_pdb
-            from py_graphs.moieties import draw_graph
-            for (i, molecule) in enumerate(possible_capped_molecules):
-                graph = molecule.graph()
-                draw_graph(
-                    graph,
-                    fnme=join('graphs' ,'_'.join((self.name, str(i))) + '.png'),
+            try:
+                from py_graphs.pdb import graph_from_pdb
+                from py_graphs.moieties import draw_graph
+                for (i, molecule) in enumerate(possible_capped_molecules):
+                    graph = molecule.graph()
+                    draw_graph(
+                        graph,
+                        fnme=join('graphs' ,'_'.join((self.name, str(i))) + '.png'),
+                    )
+            except Exception as e:
+                print(
+                    'ERROR: Could not plot graphs (error was: {0})'.format(
+                        str(e),
+                    ),
                 )
+                raise
 
         best_molecule = possible_capped_molecules[0]
         return best_molecule
@@ -261,28 +276,47 @@ class Molecule:
         return len(self.atoms)
 
     def dummy_pdb(self):
-        from atb_helpers.pdb import PDB_TEMPLATE
+        from atb_helpers.pdb import PDB_TEMPLATE, pdb_conect_line
         io = StringIO()
 
-        for (i, atom) in enumerate(sorted(list(self.atoms.values()), key=lambda atom: atom['index'])):
+        ordered_atoms = sorted(
+            self.atoms.values(),
+            key=lambda atom: atom['index'],
+        )
+
+        pdb_ids = dict(
+            zip(
+                [atom['index'] for atom in ordered_atoms],
+                range(1, len(ordered_atoms) + 1),
+            ),
+        )
+
+        for (atom_index, pdb_id) in sorted(pdb_ids.items(), key=itemgetter(1)):
             print(PDB_TEMPLATE.format(
                 'HETATM',
-                i,
+                pdb_id,
                 'D',
                 'R',
                 '',
-                i,
-                0.,
+                pdb_id,
+                1. * pdb_id,
                 0.,
                 0.,
                 '',
                 '',
-                atom['element'].title(),
+                self.atoms[atom_index]['element'].title(),
                 '',
             ), file=io)
 
-        for bond in self.bonds:
-            print(' '.join(['CONECT'] + [str(id) for id in bond]), file=io)
+        for (atom_index, pdb_id) in sorted(pdb_ids.items(), key=itemgetter(1)):
+            print(
+                pdb_conect_line(
+                    [pdb_id]
+                    +
+                    [pdb_ids[bond[0] if bond[1] == atom_index else bond[1]] for bond in self.bonds if atom_index in bond]
+                ),
+                file=io,
+            )
 
         return io.getvalue()
 
@@ -314,14 +348,14 @@ class Molecule:
         vertex_types = g.new_vertex_property("string")
         g.vertex_properties['type'] = vertex_types
 
-        vertices = []
+        vertices = {}
         for atom_index in sorted(self.atoms.keys()):
             v = g.add_vertex()
             vertex_types[v] = '{element}{valence}'.format(
                 element=self.atoms[atom_index]['element'],
                 valence=self.atoms[atom_index]['valence'] if self.use_neighbour_valences else '',
             )
-            vertices.append(v)
+            vertices[atom_index] = v
 
         for (i, j) in self.bonds:
             g.add_edge(vertices[i], vertices[j])
@@ -356,9 +390,11 @@ class Molecule:
                 *[
                     set.intersection(set(POSSIBLE_BOND_ORDERS[element_1]), set(POSSIBLE_BOND_ORDERS[element_2]))
                     for (element_1, element_2) in
-                    map(
-                        lambda bond: (self.atoms[bond[0]]['element'], self.atoms[bond[1]]['element']),
-                        self.bonds,
+                    list(
+                        map(
+                            lambda bond: (self.atoms[bond[0]]['element'], self.atoms[bond[1]]['element']),
+                            self.bonds,
+                        )
                     )
                 ]
             ),
@@ -496,16 +532,20 @@ def reduce_iterables(iterables):
 
 assert reduce_iterables([[1], [2], [3]]) == [1, 2, 3], reduce_iterables([[1]], [[2]], [[3]])
 
-def best_capped_molecule_for_dihedral_fragment(fragment):
-    assert fragment.count('|') == 3
-    neighbours_1, atom_2, atom_3, neighbours_4 = fragment.split('|')
-    neighbours_1, neighbours_4 = neighbours_1.split(','), neighbours_4.split(',')
+def best_capped_molecule_for_dihedral_fragment(fragment_str):
+    if fragment_str.count('|') == 3:
+        neighbours_1, atom_2, atom_3, neighbours_4 = fragment_str.split('|')
+        cycles = []
+        neighbours_1, neighbours_4 = neighbours_1.split(','), neighbours_4.split(',')
+    elif fragment_str.count('|') == 4:
+        neighbours_1, atom_2, atom_3, neighbours_4, cycles = fragment_str.split('|')
+        neighbours_1, neighbours_4, cycles = neighbours_1.split(','), neighbours_4.split(','), cycles.split(',')
+    else:
+        raise Exception('Invalid fragment_str: "{0}"'.format(fragment_str))
 
     ids = [n for (n, _) in enumerate(neighbours_1 + [atom_2, atom_3] + neighbours_4)]
 
     neighbours_id_1, atom_id_2, atom_id_3, neighbours_id_4 = ids[0:len(neighbours_1)], ids[len(neighbours_1)], ids[len(neighbours_1) + 1], ids[len(neighbours_1) + 2:]
-    #print ids
-    #print neighbours_id_1, atom_2, atom_3, neighbours_id_4
     CENTRAL_BOND = (atom_id_2, atom_id_3)
 
     elements = dict(
@@ -540,10 +580,34 @@ def best_capped_molecule_for_dihedral_fragment(fragment):
             ))
         ),
         bonds,
-        name=fragment.replace('|', '_'),
+        name=fragment_str.replace('|', '_'),
     )
 
+    print(m)
+    for (i, n, j) in map(lambda cycle: map(int, cycle), cycles):
+        i_id, j_id = neighbours_id_1[i], neighbours_id_4[j]
+        if n == 0:
+            # i and j are actually the same atoms
+            del m.atoms[j_id]
+            replace_j_by_i = lambda x: i_id if x == j_id else x
+            m.bonds = [
+                list(map(replace_j_by_i, bond))
+                for bond in m.bonds
+            ]
+        else:
+            NEW_ATOM_ID = -1
+            NEW_ATOM = {
+                'valence': NO_VALENCE,
+                'element': 'C',
+                'index': NEW_ATOM_ID, # This will get overwritten by Molecule.add_atom
+                'capped': False,
+            }
+            atom_chain_id = [i_id] + [m.add_atom(NEW_ATOM) for i in range(n - 1)] + [j_id]
+            new_bonds = zip(atom_chain_id[:-1], atom_chain_id[1:])
+            m.bonds += new_bonds
+
     m = m.get_best_capped_molecule()
+    print(m)
     return m
 
 def cap_fragment(fragment, count=None, i=None, fragments=None):
@@ -556,15 +620,17 @@ def cap_fragment(fragment, count=None, i=None, fragments=None):
         ))
 
     molecule = best_capped_molecule_for_dihedral_fragment(fragment)
-    #print molecule.inchi()
-    #print molecule.dummy_pdb()
 
-    api_response = api.Molecules.structure_search(
-        netcharge='*',
-        structure_format='pdb',
-        structure=molecule.dummy_pdb(),
-        return_type='molecules',
-    )
+    try:
+        api_response = api.Molecules.structure_search(
+            netcharge='*',
+            structure_format='pdb',
+            structure=molecule.dummy_pdb(),
+            return_type='molecules',
+        )
+    except HTTPError:
+        print(molecule.dummy_pdb())
+        raise
 
     molecules = api_response['matches']
 
@@ -633,6 +699,15 @@ def generate_collage(protein_fragments):
     matches = cached(get_matches, (protein_fragments,), {}, hashed=True)
     counts = dict(protein_fragments)
 
+    for (fragment, molid) in matches:
+        if molid:
+            print(
+                'python3 test.py --download {molid} --submit --dihedral-fragment "{dihedral_fragment}"'.format(
+                    molid=molid,
+                    dihedral_fragment=fragment,
+                ),
+            )
+
     print(matches)
     print('INFO: Assigned {0}/{1} molecules (missing_ids = {2})'.format(
         len([__molid for __molid in matches if __molid[1] is not None]),
@@ -687,7 +762,7 @@ def generate_collage(protein_fragments):
 
     figure_collage()
 
-REMOVE_VALENCES = True
+REMOVE_VALENCES = False
 
 def get_protein_fragments():
     with open('cache/protein_fragments.pickle', 'rb') as fh:
@@ -698,6 +773,12 @@ def get_protein_fragments():
         protein_fragments = [(sub('[0-9]', '', fragment), count) for (fragment, count) in protein_fragments]
 
     return protein_fragments
+
+def test_cyclic_fragments():
+    print(cap_fragment('C,H,H|C|C|C,H,H|000'))
+    print(cap_fragment('C,H,H|C|C|C,H,H|010'))
+    print(cap_fragment('C,H,H|C|C|C,H,H|020'))
+    print(cap_fragment('C,H,H|C|C|C,H,H|030'))
 
 def main(only_id: Optional[int] = None):
     protein_fragments = get_protein_fragments()
@@ -713,5 +794,6 @@ def main(only_id: Optional[int] = None):
         generate_collage(protein_fragments)
 
 if __name__ == '__main__':
+    test_cyclic_fragments()
     args = parse_args()
     main(only_id=args.only_id)
