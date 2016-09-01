@@ -606,7 +606,7 @@ def cap_fragment(fragment, count=None, i=None, fragments=None):
 
     return best_molid
 
-def get_matches():
+def get_matches(protein_fragments):
     matches = [
         (fragment, cap_fragment(fragment, count=count, i=i, fragments=protein_fragments))
         for (i, (fragment, count)) in
@@ -629,9 +629,8 @@ def parse_args():
 
     return parser.parse_args()
 
-def generate_collage():
-
-    matches = cached(get_matches, (), {})
+def generate_collage(protein_fragments):
+    matches = cached(get_matches, (protein_fragments,), {}, hashed=True)
     counts = dict(protein_fragments)
 
     print(matches)
@@ -691,7 +690,7 @@ def generate_collage():
 REMOVE_VALENCES = True
 
 def get_protein_fragments():
-    with open('cache/protein_fragments.pickle') as fh:
+    with open('cache/protein_fragments.pickle', 'rb') as fh:
         protein_fragments = load(fh)
 
     if REMOVE_VALENCES:
@@ -711,7 +710,7 @@ def main(only_id: Optional[int] = None):
             fragments=(True,),
         ))
     else:
-        generate_collage()
+        generate_collage(protein_fragments)
 
 if __name__ == '__main__':
     args = parse_args()
