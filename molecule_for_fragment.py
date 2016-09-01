@@ -735,26 +735,29 @@ def generate_collage(protein_fragments):
     def figure_collage():
         import matplotlib.pyplot as p
         from PIL import Image
-        subplot_dim = int(ceil(sqrt(len(matches))))
 
-        fig, axarr = p.subplots(*[subplot_dim]*2, figsize=(30, 15))
+        from collage import best_grid, COLUMNS, LINES, indices_for_subplot
 
-        def indices_for_fig(n):
-            return ((n // subplot_dim), n - (n // subplot_dim) * subplot_dim)
+        subplot_dims = best_grid(
+            len(matches),
+        )
+
+        fig, axarr = p.subplots(*subplot_dims, figsize=(30, 15))
 
         for (n, (fragment, molid)) in enumerate(matches):
+            indices = indices_for_subplot(n, subplot_dims)
             if molid in png_files:
                 image = Image.open(png_files[molid])
-                axarr[indices_for_fig(n)].imshow(image)
-            axarr[indices_for_fig(n)].set_title(
+                axarr[indices].imshow(image)
+            axarr[indices].set_title(
                 fragment + (' (id={1}, molid={0})'.format(molid, n)),
                 fontsize=11,
                 fontname='Andale Mono',
             )
-            axarr[indices_for_fig(n)].set_axis_off()
+            axarr[indices].set_axis_off()
 
-        for n in range(len(matches), subplot_dim**2):
-            axarr[indices_for_fig(n)].set_axis_off()
+        for n in range(len(matches), subplot_dims[LINES] * subplot_dims[COLUMNS]):
+            axarr[indices].set_axis_off()
 
         p.tight_layout()
         p.show()
