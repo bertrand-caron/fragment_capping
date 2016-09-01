@@ -774,12 +774,6 @@ def get_protein_fragments():
 
     return protein_fragments
 
-def test_cyclic_fragments():
-    print(cap_fragment('C,H,H|C|C|C,H,H|000'))
-    print(cap_fragment('C,H,H|C|C|C,H,H|010'))
-    print(cap_fragment('C,H,H|C|C|C,H,H|020'))
-    print(cap_fragment('C,H,H|C|C|C,H,H|030'))
-
 def main(only_id: Optional[int] = None):
     protein_fragments = get_protein_fragments()
 
@@ -794,6 +788,5 @@ def main(only_id: Optional[int] = None):
         generate_collage(protein_fragments)
 
 if __name__ == '__main__':
-    test_cyclic_fragments()
     args = parse_args()
     main(only_id=args.only_id)
