@@ -19,6 +19,8 @@ def signature(fct_args, fct_kwargs, hashed):
         '_'
         +
         ','.join(['{0}={1}'.format(key, value) for (key, value) in sorted(fct_kwargs.items())])
+        +
+        '.pkl'
     )
 
 def cache_file_for_(fct, fct_args, fct_kwargs, hashed=False):
