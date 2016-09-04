@@ -1,5 +1,5 @@
 fragments: cache/protein_fragments.pickle
-	python molecule_for_fragment.py
+	python3 molecule_for_fragment.py
 .PHONY: fragments
 
 cache/protein_fragments.pickle:
