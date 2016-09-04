@@ -767,6 +767,8 @@ def generate_collage(protein_fragments):
 
 REMOVE_VALENCES = False
 
+EXCLUDE_CYCLIC_FRAGMENTS = True
+
 def get_protein_fragments():
     with open('cache/protein_fragments.pickle', 'rb') as fh:
         protein_fragments = load(fh)
@@ -774,6 +776,10 @@ def get_protein_fragments():
     if REMOVE_VALENCES:
         from re import sub
         protein_fragments = [(sub('[0-9]', '', fragment), count) for (fragment, count) in protein_fragments]
+
+    if EXCLUDE_CYCLIC_FRAGMENTS:
+        print(protein_fragments)
+        protein_fragments = [(fragment, count) for (fragment, count) in protein_fragments if fragment.count('|') == 3]
 
     return protein_fragments
 
