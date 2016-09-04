@@ -769,6 +769,8 @@ REMOVE_VALENCES = False
 
 EXCLUDE_CYCLIC_FRAGMENTS = True
 
+DUMP_NUMBERED_FRAGMENTS = True
+
 def get_protein_fragments():
     with open('cache/protein_fragments.pickle', 'rb') as fh:
         protein_fragments = load(fh)
@@ -780,6 +782,17 @@ def get_protein_fragments():
     if EXCLUDE_CYCLIC_FRAGMENTS:
         print(protein_fragments)
         protein_fragments = [(fragment, count) for (fragment, count) in protein_fragments if fragment.count('|') == 3]
+
+    if DUMP_NUMBERED_FRAGMENTS:
+        print()
+        def numbered_fragments():
+            return {fragment: n for (n, (fragment, count)) in enumerate(protein_fragments)}
+
+        cached(
+            numbered_fragments,
+            (),
+            {},
+        )
 
     return protein_fragments
 
