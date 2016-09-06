@@ -757,6 +757,7 @@ def generate_collage(protein_fragments):
             axarr[indices].set_axis_off()
 
         for n in range(len(matches), subplot_dims[LINES] * subplot_dims[COLUMNS]):
+            indices = indices_for_subplot(n, subplot_dims)
             axarr[indices].set_axis_off()
 
         p.tight_layout()
