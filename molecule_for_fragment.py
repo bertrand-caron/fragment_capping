@@ -12,11 +12,13 @@ from fragment_dihedrals.fragment_dihedral import element_valence_for_atom, on_as
 from collections import namedtuple
 
 from cairosvg import svg2png
-from typing import Optional
+from typing import Optional, Tuple
 
 DRAW_GRAPHS = False
 
 DEBUG = False
+
+FIGSIZE = (30, 15) # inches ?
 
 def concat(list_of_lists):
     return reduce(
@@ -692,10 +694,11 @@ def parse_args():
 
     parser = ArgumentParser()
     parser.add_argument('--only-id', type=int, help='Rerun a single fragment')
+    parser.add_argument('--figsize', nargs=2, type=int, default=FIGSIZE, help='Figure dimensions (in inches)')
 
     return parser.parse_args()
 
-def generate_collage(protein_fragments):
+def generate_collage(protein_fragments, figsize=FIGSIZE):
     matches = cached(get_matches, (protein_fragments,), {}, hashed=True)
     counts = dict(protein_fragments)
 
@@ -732,7 +735,7 @@ def generate_collage(protein_fragments):
 
     png_files = dict([(molid, png_file_for(molid)) for (_, molid) in matches if molid is not None])
 
-    def figure_collage():
+    def figure_collage(figsize=FIGSIZE):
         import matplotlib.pyplot as p
         from PIL import Image
 
@@ -742,7 +745,7 @@ def generate_collage(protein_fragments):
             len(matches),
         )
 
-        fig, axarr = p.subplots(*subplot_dims, figsize=(30, 15))
+        fig, axarr = p.subplots(*subplot_dims, figsize=figsize)
 
         for (n, (fragment, molid)) in enumerate(matches):
             indices = indices_for_subplot(n, subplot_dims)
@@ -764,7 +767,7 @@ def generate_collage(protein_fragments):
         p.show()
         fig.savefig('collage.png')
 
-    figure_collage()
+    figure_collage(figsize=figsize)
 
 REMOVE_VALENCES = False
 
@@ -797,7 +800,7 @@ def get_protein_fragments():
 
     return protein_fragments
 
-def main(only_id: Optional[int] = None):
+def main(only_id: Optional[int] = None, figsize: Tuple[int, int] = FIGSIZE):
     protein_fragments = get_protein_fragments()
 
     if only_id:
@@ -808,8 +811,11 @@ def main(only_id: Optional[int] = None):
             fragments=(True,),
         ))
     else:
-        generate_collage(protein_fragments)
+        generate_collage(protein_fragments, figsize=figsize)
 
 if __name__ == '__main__':
     args = parse_args()
-    main(only_id=args.only_id)
+    main(
+        only_id=args.only_id,
+        figsize=tuple(args.figsize),
+    )
