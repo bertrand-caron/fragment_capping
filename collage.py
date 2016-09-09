@@ -27,10 +27,6 @@ def best_grid(l, aspect_ratio=(1, 1)):
         key=grid_fitness,
     )
 
-    print(list(sorted_grids))
-    print(list(map(grid_fitness, sorted_grids)))
-    print(list(map(grid_aspect_ratio, sorted_grids)))
-
     return sorted_grids[0]
 
 def indices_for_subplot(n, subplot_dims):
