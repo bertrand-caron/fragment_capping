@@ -743,6 +743,7 @@ def generate_collage(protein_fragments, figsize=FIGSIZE):
 
         subplot_dims = best_grid(
             len(matches),
+            aspect_ratio=figsize,
         )
 
         fig, axarr = p.subplots(*subplot_dims, figsize=figsize)
