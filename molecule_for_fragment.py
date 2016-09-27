@@ -765,8 +765,8 @@ def generate_collage(protein_fragments, figsize=FIGSIZE):
             axarr[indices].set_axis_off()
 
         p.tight_layout()
-        p.show()
-        fig.savefig('collage.png')
+        #p.show()
+        fig.savefig('collage.png', dpi=400)
 
     figure_collage(figsize=figsize)
 
