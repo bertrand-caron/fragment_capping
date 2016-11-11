@@ -7,10 +7,13 @@ from functools import reduce
 from operator import itemgetter
 from typing import Any, List, Optional, Tuple
 
-from cache import cached
+from fragment_capping.helpers.parameters import FULL_VALENCES, POSSIBLE_BOND_ORDERS, POSSIBLE_CHARGES, INDIVIDUAL_CAPPING_OPTIONS
+from fragment_capping.cache import cached
+from fragment_capping.helpers.types_helpers import Fragment, ATB_Molid, Atom
+from fragment_capping.helpers.iterables import concat
+
 from API_client.api import API, HTTPError
 from fragment_dihedrals.fragment_dihedral import element_valence_for_atom, on_asc_number_electron_then_asc_valence, NO_VALENCE
-from collections import namedtuple
 
 from cairosvg import svg2png
 
@@ -20,40 +23,21 @@ DEBUG = False
 
 FIGSIZE = (30, 15) # inches ?
 
-Fragment = str
-
-ATB_Molid = int
-
-def concat(list_of_lists):
-    return reduce(
-        lambda acc, e: acc + e,
-        list_of_lists,
-    )
-
 class Molecule:
-    FULL_VALENCES = {
-        'C': 4,
-        'N': 3,
-        'O': 2,
-        'H': 1,
-        'S': 2,
-        'P': 5,
-    }
-
-    def __init__(self, atoms, bonds, name=None):
+    def __init__(self, atoms: Any, bonds: Any, name: Optional[str] = None) -> None:
         self.atoms = atoms
         self.bonds = bonds
         self.name = name
 
         self.use_neighbour_valences = (True if all([atom['valence'] is not NO_VALENCE for atom in list(self.atoms.values())]) else False)
 
-    def atom_desc(self, atom):
+    def atom_desc(self, atom: Atom):
         if self.use_neighbour_valences:
             return atom['element'] + str(atom['valence'])
         else:
             return atom['element']
 
-    def assert_use_neighbour_valences(self):
+    def assert_use_neighbour_valences(self) -> None:
         assert self.use_neighbour_valences, 'ERROR: self.use_neighbour_valences is set to False'
 
     def valence(self, atom_id):
@@ -66,10 +50,10 @@ class Molecule:
     def ids(self):
         return list(self.atoms.keys())
 
-    def __str__(self):
+    def __str__(self) -> str:
         return 'Molecule; atoms={0}; bonds={1}'.format(self.atoms, self.bonds)
 
-    def add_atom(self, atom):
+    def add_atom(self, atom: Atom) -> Any:
         highest_id = max(self.atoms.keys())
         atom_id = highest_id + 1
         self.atoms[atom_id] = dict(list(atom.items()) + list(dict(index=atom_id).items()))
@@ -133,7 +117,7 @@ class Molecule:
                 ))
             return None
 
-    def check_valence(self):
+    def check_valence(self) -> None:
         self.assert_use_neighbour_valences()
 
         try:
@@ -152,30 +136,6 @@ class Molecule:
             raise
 
     def get_best_capped_molecule(self):
-        Capping_Strategy = namedtuple('Capping_Strategy', 'new_atoms, new_bonds, new_valences')
-
-        NO_CAP = Capping_Strategy((), (), ())
-        H_CAP = Capping_Strategy(('H',), ((0, 1),), (1,))
-        H2_CAP = Capping_Strategy(('H', 'H'), ((0, 1), (0, 2)), (1, 1))
-        H3_CAP = Capping_Strategy(('H', 'H', 'H'), ((0, 1), (0, 2), (0, 3)), (1, 1, 1))
-        H4_CAP = Capping_Strategy(('H', 'H', 'H', 'H'), ((0, 1), (0, 2), (0, 3), (0, 4)), (1, 1, 1, 1))
-        H_CH2_CAP = Capping_Strategy(('H', 'C', 'H', 'H'), ((0, 1), (0, 2), (2, 3), (2, 4)), (1, 3, 1, 1))
-        CH3_CAP = Capping_Strategy(('C', 'H', 'H', 'H'), ((0, 1), (1, 2), (1, 3), (1, 4)), (4, 1, 1, 1))
-
-        INDIVIDUAL_CAPPING_OPTIONS = {
-            'H1': (NO_CAP,),
-            'O1': (NO_CAP,),
-            'O2': (H_CAP,),
-            'S1': (NO_CAP,),
-            'S2': (H_CAP,),
-            'C4': (H3_CAP,),
-            'C3': (H2_CAP, H_CH2_CAP),
-            'N2': (H_CAP, CH3_CAP,),
-            'N3': (H2_CAP,),
-            'N4': (H3_CAP,),
-            'P5': (H4_CAP,),
-        }
-
         on_first_atom_desc_letter = lambda atom_desc_capping_strategies: atom_desc_capping_strategies[0][0]
 
         if not self.use_neighbour_valences:
@@ -378,24 +338,6 @@ class Molecule:
         return [atom_id  for (atom_id, atom) in sorted(self.atoms.items())]
 
     def assign_bond_orders_and_charges(self):
-        POSSIBLE_BOND_ORDERS = {
-            'S': (1, 2,),
-            'C': (1, 2,),
-            'H': (1,),
-            'O': (1, 2,),
-            'N': (1, 2,),
-            'P': (1, 2,),
-        }
-
-        POSSIBLE_CHARGES = {
-            'S': (0,),
-            'C': (0,),
-            'H': (0,),
-            'O': (0, -1,),
-            'N': (0, +1,),
-            'P': (0,),
-        }
-
         possible_bond_orders_lists = list(
             product(
                 *[
@@ -470,7 +412,7 @@ class Molecule:
 
         valid = all(
             [
-                sum(map(on_bond_order, group)) == Molecule.FULL_VALENCES[self.atoms[atom_id]['element']] + charges[atom_id]
+                sum(map(on_bond_order, group)) == FULL_VALENCES[self.atoms[atom_id]['element']] + charges[atom_id]
                 for (atom_id, group) in
                 groupby(
                     sorted(

@@ -10,3 +10,7 @@ cache/protein_fragments.pickle:
 mypy: $(PYTHON_BIN_DIR)/mypy
 	MYPYPATH=$(PYTHONPATH) $(PYTHON_BIN_DIR)/mypy *.py helpers/*.py
 .PHONY: mypy
+
+errors:
+	PYTHONPATH=$(PYTHONPATH) $(PYTHON_BIN_DIR)/pylint -j 4 -E *.py
+.PHONY: errors
