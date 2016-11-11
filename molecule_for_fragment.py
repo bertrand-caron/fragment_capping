@@ -7,10 +7,9 @@ from functools import reduce
 from operator import itemgetter
 from typing import Any, List, Optional, Tuple
 
-from fragment_capping.helpers.parameters import FULL_VALENCES, POSSIBLE_BOND_ORDERS, POSSIBLE_CHARGES, INDIVIDUAL_CAPPING_OPTIONS
+from fragment_capping.helpers.parameters import FULL_VALENCES, POSSIBLE_BOND_ORDERS, POSSIBLE_CHARGES, get_capping_options
 from fragment_capping.cache import cached
 from fragment_capping.helpers.types_helpers import Fragment, ATB_Molid, Atom
-from fragment_capping.helpers.iterables import concat
 
 from API_client.api import API, HTTPError
 from fragment_dihedrals.fragment_dihedral import element_valence_for_atom, on_asc_number_electron_then_asc_valence, NO_VALENCE
@@ -135,43 +134,24 @@ class Molecule:
             print('Bonds are: {0}'.format(self.bonds))
             raise
 
-    def get_best_capped_molecule(self):
-        on_first_atom_desc_letter = lambda atom_desc_capping_strategies: atom_desc_capping_strategies[0][0]
-
-        if not self.use_neighbour_valences:
-            'Aggregate capping strategies for a given element.'
-            CAPPING_OPTIONS = dict(
-                [
-                    (element, concat([x[1] for x in group]))
-                    for (element, group) in
-                    groupby(
-                        sorted(list(INDIVIDUAL_CAPPING_OPTIONS.items()), key=on_first_atom_desc_letter),
-                        key=on_first_atom_desc_letter,
-                    )
-                ]
-            )
-        else:
-            CAPPING_OPTIONS = INDIVIDUAL_CAPPING_OPTIONS
-
-        if DEBUG:
-            print([(key, len(value)) for (key, value) in list(INDIVIDUAL_CAPPING_OPTIONS.items())])
-            print([(key, len(value)) for (key, value) in list(CAPPING_OPTIONS.items())])
+    def get_best_capped_molecule(self, debug: bool = False):
+        capping_options = get_capping_options(self.use_neighbour_valences)
 
         atoms_need_capping = [atom for atom in self.sorted_atoms() if not atom['capped']]
         capping_schemes = list(
             product(
                 *[
-                    CAPPING_OPTIONS[self.atom_desc(atom)]
+                    capping_options[self.atom_desc(atom)]
                     for atom in atoms_need_capping
                 ]
             ),
         )
 
-        if DEBUG:
+        if debug:
             print('atoms_need_capping: {0}'.format(atoms_need_capping))
             print('capping_schemes: {0}'.format(capping_schemes))
             print('capping_options: {0}'.format([
-                len(CAPPING_OPTIONS[self.atom_desc(atom)])
+                len(capping_options[self.atom_desc(atom)])
                 for atom in atoms_need_capping
             ]))
 
@@ -690,7 +670,7 @@ def generate_collage(protein_fragments, figsize=FIGSIZE) -> bool:
         import matplotlib.pyplot as p
         from PIL import Image
 
-        from collage import best_grid, COLUMNS, LINES, indices_for_subplot
+        from fragment_capping.collage import best_grid, COLUMNS, LINES, indices_for_subplot
 
         subplot_dims = best_grid(
             len(matches),

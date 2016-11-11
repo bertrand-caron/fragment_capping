@@ -1,4 +1,4 @@
-from molecule_for_fragment import cap_fragment
+from fragment_capping.molecule_for_fragment import cap_fragment
 
 def test_cyclic_fragments():
     print(cap_fragment('C,H,H|C|C|C,H,H|000'))

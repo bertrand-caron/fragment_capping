@@ -1,4 +1,7 @@
-from typing import NamedTuple, Any
+from typing import NamedTuple, Any, List, Sequence, Tuple
+from itertools import groupby
+
+from fragment_capping.helpers.iterables import concat
 
 FULL_VALENCES = {
     'C': 4,
@@ -27,7 +30,7 @@ POSSIBLE_CHARGES = {
     'P': (0,),
 }
 
-Capping_Strategy = NamedTuple('Capping_Strategy', [('new_atoms', Any), ('new_bonds', Any), ('new_valences', Any)])
+Capping_Strategy = NamedTuple('Capping_Strategy', [('new_atoms', Sequence[str]), ('new_bonds', Sequence[Tuple[int, int]]), ('new_valences', Sequence[int])])
 
 NO_CAP = Capping_Strategy((), (), ())
 H_CAP = Capping_Strategy(('H',), ((0, 1),), (1,))
@@ -50,3 +53,30 @@ INDIVIDUAL_CAPPING_OPTIONS = {
     'N4': (H3_CAP,),
     'P5': (H4_CAP,),
 }
+
+on_first_letter_of_dict_key = lambda item: item[0][0]
+
+def get_capping_options(use_neighbour_valences: bool, debug: bool = False) -> List[Capping_Strategy]:
+    if not use_neighbour_valences:
+        'Aggregate capping strategies for a given element.'
+        capping_options = dict(
+            [
+                (element, concat([x[1] for x in list(group)]))
+                for (element, group) in
+                groupby(
+                    sorted(
+                        INDIVIDUAL_CAPPING_OPTIONS.items(),
+                        key=on_first_letter_of_dict_key,
+                    ),
+                    key=on_first_letter_of_dict_key,
+                )
+            ]
+        )
+    else:
+        capping_options = INDIVIDUAL_CAPPING_OPTIONS
+
+    if debug:
+        print([(key, value) for (key, value) in list(INDIVIDUAL_CAPPING_OPTIONS.items())])
+        print([(key, value) for (key, value) in list(capping_options.items())])
+
+    return capping_options
