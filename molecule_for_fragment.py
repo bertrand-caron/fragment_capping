@@ -5,6 +5,7 @@ from os.path import join, exists
 from io import StringIO
 from functools import reduce
 from operator import itemgetter
+from typing import Any, List, Optional, Tuple
 
 from cache import cached
 from API_client.api import API, HTTPError
@@ -12,13 +13,16 @@ from fragment_dihedrals.fragment_dihedral import element_valence_for_atom, on_as
 from collections import namedtuple
 
 from cairosvg import svg2png
-from typing import Optional, Tuple
 
 DRAW_GRAPHS = False
 
 DEBUG = False
 
 FIGSIZE = (30, 15) # inches ?
+
+Fragment = str
+
+ATB_Molid = int
 
 def concat(list_of_lists):
     return reduce(
@@ -33,6 +37,7 @@ class Molecule:
         'O': 2,
         'H': 1,
         'S': 2,
+        'P': 5,
     }
 
     def __init__(self, atoms, bonds, name=None):
@@ -153,6 +158,7 @@ class Molecule:
         H_CAP = Capping_Strategy(('H',), ((0, 1),), (1,))
         H2_CAP = Capping_Strategy(('H', 'H'), ((0, 1), (0, 2)), (1, 1))
         H3_CAP = Capping_Strategy(('H', 'H', 'H'), ((0, 1), (0, 2), (0, 3)), (1, 1, 1))
+        H4_CAP = Capping_Strategy(('H', 'H', 'H', 'H'), ((0, 1), (0, 2), (0, 3), (0, 4)), (1, 1, 1, 1))
         H_CH2_CAP = Capping_Strategy(('H', 'C', 'H', 'H'), ((0, 1), (0, 2), (2, 3), (2, 4)), (1, 3, 1, 1))
         CH3_CAP = Capping_Strategy(('C', 'H', 'H', 'H'), ((0, 1), (1, 2), (1, 3), (1, 4)), (4, 1, 1, 1))
 
@@ -167,6 +173,7 @@ class Molecule:
             'N2': (H_CAP, CH3_CAP,),
             'N3': (H2_CAP,),
             'N4': (H3_CAP,),
+            'P5': (H4_CAP,),
         }
 
         on_first_atom_desc_letter = lambda atom_desc_capping_strategies: atom_desc_capping_strategies[0][0]
@@ -377,6 +384,7 @@ class Molecule:
             'H': (1,),
             'O': (1, 2,),
             'N': (1, 2,),
+            'P': (1, 2,),
         }
 
         POSSIBLE_CHARGES = {
@@ -385,6 +393,7 @@ class Molecule:
             'H': (0,),
             'O': (0, -1,),
             'N': (0, +1,),
+            'P': (0,),
         }
 
         possible_bond_orders_lists = list(
@@ -612,7 +621,7 @@ def best_capped_molecule_for_dihedral_fragment(fragment_str):
     print(m)
     return m
 
-def cap_fragment(fragment, count=None, i=None, fragments=None):
+def cap_fragment(fragment: Fragment, count: Optional[int] = None, i: Optional[int] = None, fragments: Optional[List[Any]] = None):
     if all([x is not None for x in (count, i, fragments)]):
         print('Running fragment {0}/{1} (count={2}): "{3}"'.format(
             i + 1,
@@ -674,7 +683,7 @@ def cap_fragment(fragment, count=None, i=None, fragments=None):
 
     return best_molid
 
-def get_matches(protein_fragments):
+def get_matches(protein_fragments: List[Tuple[Fragment, int]]) -> List[Tuple[Fragment, ATB_Molid]]:
     matches = [
         (fragment, cap_fragment(fragment, count=count, i=i, fragments=protein_fragments))
         for (i, (fragment, count)) in
@@ -689,7 +698,7 @@ def get_matches(protein_fragments):
             ))
     return matches
 
-def parse_args():
+def parse_args() -> Any:
     from argparse import ArgumentParser
 
     parser = ArgumentParser()
@@ -698,7 +707,7 @@ def parse_args():
 
     return parser.parse_args()
 
-def generate_collage(protein_fragments, figsize=FIGSIZE):
+def generate_collage(protein_fragments, figsize=FIGSIZE) -> bool:
     matches = cached(get_matches, (protein_fragments,), {}, hashed=True)
     counts = dict(protein_fragments)
 
@@ -770,13 +779,15 @@ def generate_collage(protein_fragments, figsize=FIGSIZE):
 
     figure_collage(figsize=figsize)
 
+    return True
+
 REMOVE_VALENCES = False
 
 EXCLUDE_CYCLIC_FRAGMENTS = True
 
 DUMP_NUMBERED_FRAGMENTS = True
 
-def get_protein_fragments():
+def get_protein_fragments() -> Any:
     with open('cache/protein_fragments.pickle', 'rb') as fh:
         protein_fragments = load(fh)
 
