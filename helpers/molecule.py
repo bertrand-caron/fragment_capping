@@ -436,5 +436,4 @@ class Molecule:
         ])
         return tuple([(- grouped_double_bonds[double_bond_type] if double_bond_type in grouped_double_bonds else 0) for double_bond_type in BEST_DOUBLE_BONDS])
 
-
-
+Uncapped_Molecule = Molecule

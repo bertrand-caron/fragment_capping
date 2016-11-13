@@ -5,117 +5,18 @@ from typing import Any, List, Optional, Tuple
 from fragment_capping.cache import cached
 from fragment_capping.helpers.types_helpers import Fragment, ATB_Molid, Atom
 from fragment_capping.helpers.molecule import Molecule
+from fragment_capping.helpers.capping import best_capped_molecule_for_dihedral_fragment
 
 from API_client.api import API, HTTPError
 from fragment_dihedrals.fragment_dihedral import element_valence_for_atom, on_asc_number_electron_then_asc_valence, NO_VALENCE
 
 from cairosvg import svg2png # pylint: disable=no-name-in-module
 
-FIGSIZE = (30, 15) # inches ?
-
 api = API(
     host='http://scmb-atb.biosci.uq.edu.au/atb-uqbcaron', #'https://atb.uq.edu.au',
     debug=False,
     api_format='pickle',
 )
-
-def truncated_molecule(molecule: Molecule):
-    return dict(
-        n_atoms=molecule.n_atoms,
-        num_dihedral_fragments=len(molecule.dihedral_fragments),
-        molid=molecule.molid,
-        formula=molecule.formula,
-    )
-
-def best_capped_molecule_for_dihedral_fragment(fragment_str: Fragment) -> Molecule:
-    if fragment_str.count('|') == 3:
-        neighbours_1, atom_2, atom_3, neighbours_4 = fragment_str.split('|')
-        cycles = []
-        neighbours_1, neighbours_4 = neighbours_1.split(','), neighbours_4.split(',')
-    elif fragment_str.count('|') == 4:
-        neighbours_1, atom_2, atom_3, neighbours_4, cycles = fragment_str.split('|')
-        neighbours_1, neighbours_4, cycles = neighbours_1.split(','), neighbours_4.split(','), cycles.split(',')
-    else:
-        raise Exception('Invalid fragment_str: "{0}"'.format(fragment_str))
-
-    ids = [n for (n, _) in enumerate(neighbours_1 + [atom_2, atom_3] + neighbours_4)]
-
-    neighbours_id_1, atom_id_2, atom_id_3, neighbours_id_4 = ids[0:len(neighbours_1)], ids[len(neighbours_1)], ids[len(neighbours_1) + 1], ids[len(neighbours_1) + 2:]
-    CENTRAL_BOND = (atom_id_2, atom_id_3)
-
-    elements = dict(
-        list(zip(
-            ids,
-            [element_valence_for_atom(neighbour)[0] for neighbour in neighbours_1] + [atom_2, atom_3] + [element_valence_for_atom(neighbour)[0] for neighbour in neighbours_4],
-        )),
-    )
-
-    valences = dict(
-        list(zip(
-            ids,
-            [element_valence_for_atom(neighbour)[1] for neighbour in neighbours_1] + [len(neighbours_1) + 1, len(neighbours_4) + 1] + [element_valence_for_atom(neighbour)[1] for neighbour in neighbours_4],
-        )),
-    )
-
-    bonds = (
-        [
-            (neighbour_id, atom_id_2)
-            for neighbour_id in neighbours_id_1
-        ]
-        +
-        [CENTRAL_BOND]
-        +
-        [
-            (atom_id_3, neighbour_id)
-            for neighbour_id in neighbours_id_4
-        ]
-    )
-
-    m = Molecule(
-        dict(
-            list(zip(
-                ids,
-                [
-                    {
-                        'valence': valences[atom_id],
-                        'element': elements[atom_id],
-                        'index':atom_id,
-                        'capped': (atom_id not in (neighbours_id_1 + neighbours_id_4)),
-                    }
-                    for atom_id in ids],
-
-            ))
-        ),
-        bonds,
-        name=fragment_str.replace('|', '_'),
-    )
-
-    print(m)
-    for (i, n, j) in map(lambda cycle: map(int, cycle), cycles):
-        i_id, j_id = neighbours_id_1[i], neighbours_id_4[j]
-        if n == 0:
-            # i and j are actually the same atoms
-            del m.atoms[j_id]
-            replace_j_by_i = lambda x: i_id if x == j_id else x
-            m.bonds = [
-                list(map(replace_j_by_i, bond))
-                for bond in m.bonds
-            ]
-        else:
-            NEW_ATOM_ID = -1
-            NEW_ATOM = {
-                'valence': NO_VALENCE,
-                'element': 'C',
-                'index': NEW_ATOM_ID, # This will get overwritten by Molecule.add_atom
-                'capped': False,
-            }
-            atom_chain_id = [i_id] + [m.add_atom(NEW_ATOM) for i in range(n - 1)] + [j_id]
-            new_bonds = zip(atom_chain_id[:-1], atom_chain_id[1:])
-            m.bonds += new_bonds
-
-    m = m.get_best_capped_molecule()
-    print(m)
-    return m
 
 def molid_after_capping_fragment(fragment: Fragment, count: Optional[int] = None, i: Optional[int] = None, fragments: Optional[List[Any]] = None) -> ATB_Molid:
     if all([x is not None for x in (count, i, fragments)]):
@@ -193,6 +94,16 @@ def get_matches(protein_fragments: List[Tuple[Fragment, int]]) -> List[Tuple[Fra
                 dihedral_fragment=fragment,
             ))
     return matches
+
+def truncated_molecule(molecule: Molecule):
+    return dict(
+        n_atoms=molecule.n_atoms,
+        num_dihedral_fragments=len(molecule.dihedral_fragments),
+        molid=molecule.molid,
+        formula=molecule.formula,
+    )
+
+FIGSIZE = (30, 15) # inches ?
 
 def parse_args() -> Any:
     from argparse import ArgumentParser
