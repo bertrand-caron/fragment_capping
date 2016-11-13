@@ -9,3 +9,5 @@ def concat(list_of_lists: Sequence[Sequence[Any]]):
             lambda acc, e: acc + e,
             list_of_lists,
         )
+
+assert concat([[1], [2], [3]]) == [1, 2, 3], concat([[1]], [[2]], [[3]])
