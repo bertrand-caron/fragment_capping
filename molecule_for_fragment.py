@@ -19,7 +19,7 @@ api = API(
     api_format='pickle',
 )
 
-def truncated_molecule(molecule):
+def truncated_molecule(molecule: Molecule):
     return dict(
         n_atoms=molecule.n_atoms,
         num_dihedral_fragments=len(molecule.dihedral_fragments),
@@ -27,7 +27,7 @@ def truncated_molecule(molecule):
         formula=molecule.formula,
     )
 
-def best_capped_molecule_for_dihedral_fragment(fragment_str):
+def best_capped_molecule_for_dihedral_fragment(fragment_str: Fragment) -> Molecule:
     if fragment_str.count('|') == 3:
         neighbours_1, atom_2, atom_3, neighbours_4 = fragment_str.split('|')
         cycles = []
@@ -57,7 +57,19 @@ def best_capped_molecule_for_dihedral_fragment(fragment_str):
         )),
     )
 
-    bonds = [(neighbour_id, atom_id_2) for neighbour_id in neighbours_id_1] + [CENTRAL_BOND] + [(atom_id_3, neighbour_id) for neighbour_id in neighbours_id_4]
+    bonds = (
+        [
+            (neighbour_id, atom_id_2)
+            for neighbour_id in neighbours_id_1
+        ]
+        +
+        [CENTRAL_BOND]
+        +
+        [
+            (atom_id_3, neighbour_id)
+            for neighbour_id in neighbours_id_4
+        ]
+    )
 
     m = Molecule(
         dict(
@@ -105,7 +117,7 @@ def best_capped_molecule_for_dihedral_fragment(fragment_str):
     print(m)
     return m
 
-def cap_fragment(fragment: Fragment, count: Optional[int] = None, i: Optional[int] = None, fragments: Optional[List[Any]] = None):
+def molid_after_capping_fragment(fragment: Fragment, count: Optional[int] = None, i: Optional[int] = None, fragments: Optional[List[Any]] = None) -> ATB_Molid:
     if all([x is not None for x in (count, i, fragments)]):
         print('Running fragment {0}/{1} (count={2}): "{3}"'.format(
             i + 1,
@@ -169,7 +181,7 @@ def cap_fragment(fragment: Fragment, count: Optional[int] = None, i: Optional[in
 
 def get_matches(protein_fragments: List[Tuple[Fragment, int]]) -> List[Tuple[Fragment, ATB_Molid]]:
     matches = [
-        (fragment, cap_fragment(fragment, count=count, i=i, fragments=protein_fragments))
+        (fragment, molid_after_capping_fragment(fragment, count=count, i=i, fragments=protein_fragments))
         for (i, (fragment, count)) in
         enumerate(protein_fragments)
     ]
@@ -300,7 +312,7 @@ def main(only_id: Optional[int] = None, figsize: Tuple[int, int] = FIGSIZE):
     protein_fragments = get_protein_fragments()
 
     if only_id:
-        print(cap_fragment(
+        print(molid_after_capping_fragment(
             protein_fragments[only_id][0],
             i=0,
             count='unknown',

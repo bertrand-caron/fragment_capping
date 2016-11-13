@@ -1,7 +1,7 @@
 from argparse import ArgumentParser
 from typing import Any, List, Optional
 
-from fragment_capping.molecule_for_fragment import cap_fragment, Fragment
+from fragment_capping.molecule_for_fragment import molid_after_capping_fragment, Fragment
 
 def parse_args():
     parser = ArgumentParser()
@@ -13,5 +13,5 @@ def parse_args():
 if __name__ == '__main__':
     args = parse_args()
     print(
-        cap_fragment(args.fragment),
+        molid_after_capping_fragment(args.fragment),
     )
