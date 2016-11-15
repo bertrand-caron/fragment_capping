@@ -1,6 +1,13 @@
 from pickle import load
-from os.path import join, exists
+from itertools import groupby, product
+from math import sqrt, ceil
+from os.path import join, exists, basename, dirname, abspath
+from io import StringIO
+from functools import reduce
+from operator import itemgetter
 from typing import Any, List, Optional, Tuple
+from re import sub
+from urllib.request import urlopen
 
 from fragment_capping.cache import cached
 from fragment_capping.helpers.types_helpers import Fragment, ATB_Molid, Atom
@@ -114,6 +121,30 @@ def parse_args() -> Any:
 
     return parser.parse_args()
 
+def png_file_for(molid: int, force_regen: bool = True):
+    PNG_DIR = 'pngs'
+
+    png_file = join(
+        dirname(abspath(__file__)),
+        PNG_DIR,
+        '{molid}.png'.format(molid=molid),
+    )
+
+    modified_svg_bytes = sub(
+        b'<rect.*?/>',
+        b'',
+        urlopen('https://atb.uq.edu.au/img2D/{molid}_thumb.svg'.format(molid=molid)).read(),
+    )
+
+    assert b'rect' not in modified_svg_bytes, modified_svg_bytes.decode()
+
+    if (not exists(png_file)) or force_regen:
+        svg2png(
+            bytestring=modified_svg_bytes,
+            write_to=png_file,
+        )
+    return png_file
+
 def generate_collage(protein_fragments, figsize=FIGSIZE) -> bool:
     matches = cached(get_matches, (protein_fragments,), {}, hashed=True)
     counts = dict(protein_fragments)
@@ -134,20 +165,6 @@ def generate_collage(protein_fragments, figsize=FIGSIZE) -> bool:
         [i for (i, (fragment, molid)) in enumerate(matches) if molid is None],
     ))
 
-    def png_file_for(molid):
-        PNG_DIR = 'pngs'
-
-        png_file = join(
-            PNG_DIR,
-            '{molid}.png'.format(molid=molid),
-        )
-
-        if not exists(png_file):
-            svg2png(
-                url='https://atb.uq.edu.au/img2D/{molid}_thumb.svg'.format(molid=molid),
-                write_to=png_file,
-            )
-        return png_file
 
     png_files = dict([(molid, png_file_for(molid)) for (_, molid) in matches if molid is not None])
 
@@ -188,7 +205,7 @@ def generate_collage(protein_fragments, figsize=FIGSIZE) -> bool:
 
     return True
 
-REMOVE_VALENCES = False
+REMOVE_VALENCES = True
 
 EXCLUDE_CYCLIC_FRAGMENTS = True
 
@@ -200,7 +217,7 @@ def get_protein_fragments() -> Any:
 
     if REMOVE_VALENCES:
         from re import sub
-        protein_fragments = [(sub('[0-9]', '', fragment), count) for (fragment, count) in protein_fragments]
+        protein_fragments = [(sub('[0-9]', '', fragment).replace('*', ''), count) for (fragment, count) in protein_fragments]
 
     if EXCLUDE_CYCLIC_FRAGMENTS:
         print(protein_fragments)
