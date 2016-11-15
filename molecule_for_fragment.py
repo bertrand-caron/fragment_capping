@@ -6,7 +6,7 @@ from io import StringIO
 from functools import reduce
 from operator import itemgetter
 from typing import Any, List, Optional, Tuple
-from re import sub
+from re import sub, search
 from urllib.request import urlopen
 
 from fragment_capping.cache import cached
@@ -121,7 +121,7 @@ def parse_args() -> Any:
 
     return parser.parse_args()
 
-def png_file_for(molid: int, force_regen: bool = False):
+def png_file_for(molid: int, force_regen: bool = False, remove_background: bool = True, pixel_height: int = 600, dpi: int = 400):
     PNG_DIR = 'pngs'
 
     png_file = join(
@@ -134,19 +134,37 @@ def png_file_for(molid: int, force_regen: bool = False):
         try:
             urlopen('https://atb.uq.edu.au/outputs_babel_img.py?molid={molid}'.format(molid=molid))
 
-            modified_svg_bytes = sub(
-                b'<rect.*?/>',
-                b'',
-                urlopen('https://atb.uq.edu.au/img2D/{molid}_thumb.svg'.format(molid=molid)).read(),
+            vanilla_svg_bytes = urlopen('https://atb.uq.edu.au/img2D/{molid}_thumb.svg'.format(molid=molid)).read()
+
+            modified_svg_bytes = (
+                sub(
+                    b'<rect.*?/>',
+                    b'',
+                    vanilla_svg_bytes,
+                )
+                if remove_background
+                else vanilla_svg_bytes
             )
 
-            assert b'rect' not in modified_svg_bytes, modified_svg_bytes.decode()
+
+            if remove_background:
+                assert b'rect' not in modified_svg_bytes, modified_svg_bytes.decode()
         except:
-            exit()
+            raise
+
+        if False:
+            match = search(
+                b'<svg.* width="([^"])" height="[^"]")',
+                modified_svg_bytes,
+            )
+
+            svg_width, svg_height = match.group(1), match.group()
 
         svg2png(
             bytestring=modified_svg_bytes,
             write_to=png_file,
+            dpi=dpi,
+            height=pixel_height,
         )
     return png_file
 
