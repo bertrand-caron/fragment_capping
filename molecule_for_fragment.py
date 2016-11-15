@@ -121,7 +121,7 @@ def parse_args() -> Any:
 
     return parser.parse_args()
 
-def png_file_for(molid: int, force_regen: bool = True):
+def png_file_for(molid: int, force_regen: bool = False):
     PNG_DIR = 'pngs'
 
     png_file = join(
@@ -130,15 +130,20 @@ def png_file_for(molid: int, force_regen: bool = True):
         '{molid}.png'.format(molid=molid),
     )
 
-    modified_svg_bytes = sub(
-        b'<rect.*?/>',
-        b'',
-        urlopen('https://atb.uq.edu.au/img2D/{molid}_thumb.svg'.format(molid=molid)).read(),
-    )
-
-    assert b'rect' not in modified_svg_bytes, modified_svg_bytes.decode()
-
     if (not exists(png_file)) or force_regen:
+        try:
+            urlopen('https://atb.uq.edu.au/outputs_babel_img.py?molid={molid}'.format(molid=molid))
+
+            modified_svg_bytes = sub(
+                b'<rect.*?/>',
+                b'',
+                urlopen('https://atb.uq.edu.au/img2D/{molid}_thumb.svg'.format(molid=molid)).read(),
+            )
+
+            assert b'rect' not in modified_svg_bytes, modified_svg_bytes.decode()
+        except:
+            exit()
+
         svg2png(
             bytestring=modified_svg_bytes,
             write_to=png_file,

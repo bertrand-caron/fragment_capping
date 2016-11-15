@@ -1,6 +1,6 @@
 from typing import Any, List, Optional
 
-from fragment_capping.helpers.molecule import Uncapped_Molecule
+from fragment_capping.helpers.molecule import Uncapped_Molecule, Molecule
 from fragment_capping.helpers.types_helpers import Fragment
 
 DEBUG = False
