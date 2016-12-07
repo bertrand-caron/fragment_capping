@@ -12,5 +12,5 @@ mypy: $(PYTHON_BIN_DIR)/mypy
 .PHONY: mypy
 
 errors:
-	PYTHONPATH=$(PYTHONPATH) $(PYTHON_BIN_DIR)/pylint -j 4 -E *.py
+	PYTHONPATH=$(PYTHONPATH) $(PYTHON_BIN_DIR)/pylint -j 4 -E $$(find . -name '*.py')
 .PHONY: errors

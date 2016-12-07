@@ -4,6 +4,7 @@ from operator import itemgetter
 from itertools import groupby, product
 from io import StringIO
 from functools import reduce
+from os.path import join
 
 from fragment_capping.helpers.types_helpers import Fragment, ATB_Molid, Atom
 from fragment_capping.helpers.parameters import FULL_VALENCES, POSSIBLE_BOND_ORDERS, POSSIBLE_CHARGES, get_capping_options

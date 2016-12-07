@@ -10,4 +10,4 @@ def concat(list_of_lists: Sequence[Sequence[Any]]):
             list_of_lists,
         )
 
-assert concat([[1], [2], [3]]) == [1, 2, 3], concat([[1]], [[2]], [[3]])
+assert concat([[1], [2], [3]]) == [1, 2, 3], concat([[1], [2], [3]])
