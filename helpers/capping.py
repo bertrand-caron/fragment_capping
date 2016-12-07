@@ -3,6 +3,8 @@ from typing import Any, List, Optional
 from fragment_capping.helpers.molecule import Uncapped_Molecule, Molecule
 from fragment_capping.helpers.types_helpers import Fragment
 
+from fragment_dihedrals.fragment_dihedral import element_valence_for_atom
+
 DEBUG = False
 
 def best_capped_molecule_for_dihedral_fragment(fragment_str: Fragment) -> Molecule:
