@@ -235,7 +235,7 @@ EXCLUDE_CYCLIC_FRAGMENTS = True
 DUMP_NUMBERED_FRAGMENTS = True
 
 def get_protein_fragments() -> Any:
-    with open('cache/protein_fragments.pickle', 'rb') as fh:
+    with open('data/protein_fragments_with_count.pickle', 'rb') as fh:
         protein_fragments = load(fh)
 
     if REMOVE_VALENCES:
