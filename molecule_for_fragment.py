@@ -222,7 +222,7 @@ def generate_collage(protein_fragments, figsize=FIGSIZE) -> bool:
 
         p.tight_layout()
         #p.show()
-        fig.savefig('collage.png', dpi=400)
+        fig.savefig('protein_fragment_molecules.png', dpi=400)
 
     figure_collage(figsize=figsize)
 

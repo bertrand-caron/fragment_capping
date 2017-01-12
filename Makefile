@@ -14,3 +14,6 @@ mypy: $(PYTHON_BIN_DIR)/mypy
 errors:
 	PYTHONPATH=$(PYTHONPATH) $(PYTHON_BIN_DIR)/pylint -j 4 -E $$(find . -name '*.py')
 .PHONY: errors
+
+protein_fragment_molecules.png: molecule_for_fragment.py
+	python3 $<
