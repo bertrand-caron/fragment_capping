@@ -110,7 +110,7 @@ def truncated_molecule(molecule: Molecule):
         formula=molecule.formula,
     )
 
-FIGSIZE = (30, 15) # inches ?
+FIGSIZE = (15, 15 * 1.4) # inches ?
 
 def parse_args() -> Any:
     from argparse import ArgumentParser
@@ -210,7 +210,7 @@ def generate_collage(protein_fragments, figsize=FIGSIZE) -> bool:
                 image = Image.open(png_files[molid])
                 axarr[indices].imshow(image)
             axarr[indices].set_title(
-                fragment + (' (id={1}, molid={0})'.format(molid, n)),
+                fragment + ('\n(id={1}, molid={0})'.format(molid, n)),
                 fontsize=11,
                 fontname='Andale Mono',
             )
