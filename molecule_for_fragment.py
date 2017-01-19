@@ -134,7 +134,7 @@ def png_file_for(molid: int, force_regen: bool = False, remove_background: bool 
         try:
             urlopen('https://atb.uq.edu.au/outputs_babel_img.py?molid={molid}'.format(molid=molid))
 
-            vanilla_svg_bytes = urlopen('https://atb.uq.edu.au/img2D/{molid}_thumb.svg'.format(molid=molid)).read()
+            vanilla_svg_bytes = urlopen('https://atb.uq.edu.au/cache/img2D/{molid}_thumb.svg'.format(molid=molid)).read()
 
             modified_svg_bytes = (
                 sub(
