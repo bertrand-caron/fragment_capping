@@ -1,5 +1,6 @@
-from typing import NamedTuple, Any, List, Sequence, Tuple
+from typing import NamedTuple, Any, List, Sequence, Tuple, Union
 from itertools import groupby
+from re import match, search
 
 from fragment_capping.helpers.iterables import concat
 
@@ -10,6 +11,7 @@ FULL_VALENCES = {
     'H': 1,
     'S': 2,
     'P': 5,
+    'CL': 1,
 }
 
 POSSIBLE_BOND_ORDERS = {
@@ -19,6 +21,7 @@ POSSIBLE_BOND_ORDERS = {
     'O': (1, 2,),
     'N': (1, 2,),
     'P': (1, 2,),
+    'CL': (1,),
 }
 
 POSSIBLE_CHARGES = {
@@ -28,6 +31,7 @@ POSSIBLE_CHARGES = {
     'O': (0, -1,),
     'N': (0, +1,),
     'P': (0,),
+    'CL': (0,),
 }
 
 Capping_Strategy = NamedTuple('Capping_Strategy', [('new_atoms', Sequence[str]), ('new_bonds', Sequence[Tuple[int, int]]), ('new_valences', Sequence[int])])
@@ -52,9 +56,14 @@ INDIVIDUAL_CAPPING_OPTIONS = {
     'N3': (H2_CAP,),
     'N4': (H3_CAP,),
     'P5': (H4_CAP,),
+    'CL1': (NO_CAP,),
 }
 
-on_first_letter_of_dict_key = lambda item: item[0][0]
+def group_if_not_none(match: Any) -> Union[str, None]:
+    return match.group() if match is not None else None
+
+def on_letters_of_dict_key(item: List[Any]) -> str:
+    return group_if_not_none(match('[A-Z]+', item[0]))
 
 def get_capping_options(use_neighbour_valences: bool, debug: bool = False) -> List[Capping_Strategy]:
     if not use_neighbour_valences:
@@ -66,9 +75,9 @@ def get_capping_options(use_neighbour_valences: bool, debug: bool = False) -> Li
                 groupby(
                     sorted(
                         INDIVIDUAL_CAPPING_OPTIONS.items(),
-                        key=on_first_letter_of_dict_key,
+                        key=on_letters_of_dict_key,
                     ),
-                    key=on_first_letter_of_dict_key,
+                    key=on_letters_of_dict_key,
                 )
             ]
         )
