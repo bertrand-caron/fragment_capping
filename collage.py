@@ -9,7 +9,7 @@ def best_grid(l, aspect_ratio=(1, 1)):
 
     target_aspect_ratio = (aspect_ratio[1] / aspect_ratio[0]) / MEAN_IMAGE_ASPECT_RATIO
 
-    possible_grids = product(range(1, l), repeat=2)
+    possible_grids = product(range(1, l + 1), repeat=2)
 
     def grid_aspect_ratio(grid):
         return grid[COLUMNS] / grid[LINES]
@@ -35,4 +35,14 @@ def best_grid(l, aspect_ratio=(1, 1)):
     return sorted_grids[0]
 
 def indices_for_subplot(n, subplot_dims):
-    return ((n // subplot_dims[LINES]), n - (n // subplot_dims[LINES]) * subplot_dims[LINES])
+    indices = (
+        n // subplot_dims[LINES],
+        n - (n // subplot_dims[LINES]) * subplot_dims[LINES],
+    )
+
+    if indices[0] == 0:
+        return indices[1]
+    elif indices[1] == 0:
+        return indices[0]
+    else:
+        return indices
