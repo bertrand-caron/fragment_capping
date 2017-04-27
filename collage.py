@@ -1,8 +1,12 @@
+from typing import List, Tuple, Union
+
+Numeric = Union[int, float]
+
 COLUMNS, LINES = range(2)
 
 MEAN_IMAGE_ASPECT_RATIO = 4. / 3.
 
-def best_grid(l, aspect_ratio=(1, 1)):
+def best_grid(l: int, aspect_ratio: Tuple[Numeric, Numeric] = (1, 1)) -> Tuple[int, int]:
     '''Returns (n, m) such as n * m >= l and the grid is as dense as posible'''
     from math import ceil, sqrt
     from itertools import product
@@ -34,15 +38,15 @@ def best_grid(l, aspect_ratio=(1, 1)):
 
     return sorted_grids[0]
 
-def indices_for_subplot(n, subplot_dims):
+def indices_for_subplot(n: int, subplot_dims: Tuple[int, int]) -> Union[Tuple[int, int], int]:
     indices = (
         n // subplot_dims[LINES],
         n - (n // subplot_dims[LINES]) * subplot_dims[LINES],
     )
 
-    if indices[0] == 0:
-        return indices[1]
-    elif indices[1] == 0:
-        return indices[0]
+    if subplot_dims[COLUMNS] == 0:
+        return indices[LINES]
+    elif subplot_dims[LINES] == 0:
+        return indices[COLUMNS]
     else:
         return indices
