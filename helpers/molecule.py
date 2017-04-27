@@ -9,7 +9,7 @@ from os.path import join
 from fragment_capping.helpers.types_helpers import Fragment, ATB_Molid, Atom
 from fragment_capping.helpers.parameters import FULL_VALENCES, POSSIBLE_BOND_ORDERS, POSSIBLE_CHARGES, get_capping_options
 
-from fragment_dihedrals.fragment_dihedral import element_valence_for_atom, on_asc_number_electron_then_asc_valence, NO_VALENCE
+from dihedral_fragments.dihedral_fragment import element_valence_for_atom, on_asc_number_electron_then_asc_valence, NO_VALENCE
 
 DRAW_GRAPHS = False
 
