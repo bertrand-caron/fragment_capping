@@ -50,7 +50,7 @@ INDIVIDUAL_CAPPING_OPTIONS = {
     'O2': [H_CAP],
     'S1': [NO_CAP],
     'S2': [H_CAP],
-    'C4': [H2_CAP],
+    'C4': [H2_CAP, H3_CAP],
     'C3': [H_CAP, H2_CAP, H_CH2_CAP],
     'N2': [H_CAP, CH3_CAP],
     'N3': [H2_CAP],

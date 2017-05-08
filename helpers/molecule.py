@@ -135,18 +135,28 @@ class Molecule:
     def get_best_capped_molecule(self, debug: bool = False):
         capping_options = get_capping_options(self.use_neighbour_valences)
 
-        def possible_capping_streategies_for_atom(atom: Atom):
+        neighbour_counts = self.neighbours_for_atoms()
+
+        def possible_capping_strategies_for_atom(atom: Atom):
+            if DEBUG:
+                for capping_strategy in capping_options[self.atom_desc(atom)]:
+                    print(
+                        atom,
+                        capping_strategy,
+                        new_atom_for_capping_strategy(capping_strategy),
+                        FULL_VALENCES[self.atom_desc(atom)] - min(POSSIBLE_CHARGES[atom.element]) - neighbour_counts[atom.index],
+                    )
             return [
                 capping_strategy
                 for capping_strategy in capping_options[self.atom_desc(atom)]
-                #if new_atom_for_capping_strategy(capping_strategy) <= FULL_VALENCES[self.atom_desc(atom)] - min(POSSIBLE_CHARGES[atom.element]) - atom.valence
+                if new_atom_for_capping_strategy(capping_strategy) <= FULL_VALENCES[self.atom_desc(atom)] - min(POSSIBLE_CHARGES[atom.element]) - neighbour_counts[atom.index]
             ]
 
         atoms_need_capping = [atom for atom in self.sorted_atoms() if not atom.capped]
         capping_schemes = list(
             product(
                 *[
-                    possible_capping_streategies_for_atom(atom)
+                    possible_capping_strategies_for_atom(atom)
                     for atom in atoms_need_capping
                 ]
             ),
@@ -469,5 +479,21 @@ class Molecule:
             )
         ])
         return tuple([(- grouped_double_bonds[double_bond_type] if double_bond_type in grouped_double_bonds else 0) for double_bond_type in BEST_DOUBLE_BONDS])
+
+    def neighbours_for_atoms(self) -> Dict[int, int]:
+        bond_atoms = reduce(
+            lambda acc, e: acc + e,
+            self.bonds,
+            (),
+        )
+
+        return {
+            key: len(list(group))
+            for (key, group) in groupby(
+                sorted(
+                    bond_atoms,
+                )
+            )
+        }
 
 Uncapped_Molecule = Molecule

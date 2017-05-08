@@ -76,6 +76,7 @@ def molid_after_capping_fragment(fragment: Fragment, count: Optional[int] = None
         print('Capped fragment not found in ATB.')
         print(molecule.formula())
         print(molecule.dummy_pdb())
+        print(molecule.smiles())
         best_molid = None
 
     print()
