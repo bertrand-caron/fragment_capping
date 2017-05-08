@@ -1,7 +1,10 @@
-from typing import Dict, Any
+from typing import Dict, Any, NamedTuple, Optional
 
 Fragment = str
 
 ATB_Molid = int
 
-Atom = Dict[str, Any]
+Atom = NamedTuple(
+    'Atom',
+    [('index', int), ('element', str), ('valence', Optional[int]), ('capped', bool)],
+)

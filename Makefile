@@ -1,4 +1,4 @@
-PYTHON_BIN_DIR = /home/uqbcaron/.local/bin
+PYTHON_BIN_DIR = /usr/local/python35/bin
 
 fragments: cache/protein_fragments.pickle
 	python3 molecule_for_fragment.py

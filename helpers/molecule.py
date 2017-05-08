@@ -25,25 +25,25 @@ class Molecule:
 
         self.use_neighbour_valences = (
             True
-            if all([atom['valence'] is not NO_VALENCE for atom in list(self.atoms.values())])
+            if all([atom.valence is not NO_VALENCE for atom in list(self.atoms.values())])
             else False
         )
 
     def atom_desc(self, atom: Atom):
         if self.use_neighbour_valences:
-            return atom['element'] + str(atom['valence'])
+            return atom.element + str(atom.valence)
         else:
-            return atom['element']
+            return atom.element
 
     def assert_use_neighbour_valences(self) -> None:
         assert self.use_neighbour_valences, 'ERROR: self.use_neighbour_valences is set to False'
 
     def valence(self, atom_id: int):
         self.assert_use_neighbour_valences()
-        return self.atoms[atom_id]['valence']
+        return self.atoms[atom_id].valence
 
     def element(self, atom_id: int):
-        return self.atoms[atom_id]['element']
+        return self.atoms[atom_id].element
 
     def ids(self):
         return list(self.atoms.keys())
@@ -54,14 +54,14 @@ class Molecule:
     def add_atom(self, atom: Atom) -> Any:
         highest_id = max(self.atoms.keys())
         atom_id = highest_id + 1
-        self.atoms[atom_id] = dict(list(atom.items()) + list(dict(index=atom_id).items()))
+        self.atoms[atom_id] = Atom(atom_id, *atom[1:])
         return atom_id
 
     def capped_molecule_with(self, capping_strategies: List[Any], atoms_need_capping: Any) -> Any:
         capped_molecule = deepcopy(self)
 
         for (atom, capping_strategy) in zip(atoms_need_capping, capping_strategies):
-            atom_id = atom['index']
+            atom_id = atom.index
             new_atoms, fragment_bonds, new_valences = capping_strategy
 
             last_used_id = sorted(capped_molecule.ids())[-1]
@@ -88,16 +88,16 @@ class Molecule:
             )
 
             for (new_id, new_atom, new_valence) in zip(new_ids, new_atoms, new_valences):
-                capped_molecule.atoms[new_id] = {
-                    'element': new_atom,
-                    'valence': (new_valence if self.use_neighbour_valences else NO_VALENCE),
-                    'index': new_id,
-                    'capped': True,
-                }
-            capped_molecule.atoms[atom_id]['capped'] = True
+                capped_molecule.atoms[new_id] = Atom(
+                    new_id,
+                    new_atom,
+                    new_valence if self.use_neighbour_valences else NO_VALENCE,
+                    True,
+                )
+            capped_molecule.atoms[atom_id] = Atom(*atom[:-1], True)
 
-        assert all([atom['capped'] for atom in list(capped_molecule.atoms.values())]), 'Some atoms were not capped: {0}'.format(
-            [atom for atom in list(capped_molecule.atoms.values()) if not atom['capped']],
+        assert all([atom.capped for atom in list(capped_molecule.atoms.values())]), 'Some atoms were not capped: {0}'.format(
+            [atom for atom in list(capped_molecule.atoms.values()) if not atom.capped],
         )
 
         if self.use_neighbour_valences:
@@ -119,9 +119,9 @@ class Molecule:
 
         try:
             for atom in list(self.atoms.values()):
-                atom_id = atom['index']
-                assert atom['valence'] == sum([1 for bond in self.bonds if atom_id in bond]), 'Atom {2}: {0} != {1} (bonds={3})'.format(
-                    atom['valence'],
+                atom_id = atom.index
+                assert atom.valence == sum([1 for bond in self.bonds if atom_id in bond]), 'Atom {2}: {0} != {1} (bonds={3})'.format(
+                    atom.valence,
                     sum([1 for bond in self.bonds if atom_id in bond]),
                     atom,
                     [bond for bond in self.bonds if atom_id in bond],
@@ -139,10 +139,10 @@ class Molecule:
             return [
                 capping_strategy
                 for capping_strategy in capping_options[self.atom_desc(atom)]
-                #if new_atom_for_capping_strategy(capping_strategy) <= FULL_VALENCES[self.atom_desc(atom)] - min(POSSIBLE_CHARGES[atom['element']]) - atom['valence']
+                #if new_atom_for_capping_strategy(capping_strategy) <= FULL_VALENCES[self.atom_desc(atom)] - min(POSSIBLE_CHARGES[atom.element]) - atom.valence
             ]
 
-        atoms_need_capping = [atom for atom in self.sorted_atoms() if not atom['capped']]
+        atoms_need_capping = [atom for atom in self.sorted_atoms() if not atom.capped]
         capping_schemes = list(
             product(
                 *[
@@ -199,7 +199,7 @@ class Molecule:
         return best_molecule
 
     def formula(self, charge: bool = False) -> str:
-        elements =  [atom['element'] for atom in list(self.atoms.values())]
+        elements =  [atom.element for atom in list(self.atoms.values())]
 
         return ''.join(
             list(map(
@@ -235,12 +235,12 @@ class Molecule:
 
         ordered_atoms = sorted(
             self.atoms.values(),
-            key=lambda atom: atom['index'],
+            key=lambda atom: atom.index,
         )
 
         pdb_ids = dict(
             zip(
-                [atom['index'] for atom in ordered_atoms],
+                [atom.index for atom in ordered_atoms],
                 range(1, len(ordered_atoms) + 1),
             ),
         )
@@ -258,7 +258,7 @@ class Molecule:
                 0.,
                 '',
                 '',
-                self.atoms[atom_index]['element'].title(),
+                self.atoms[atom_index].element.title(),
                 '',
             ), file=io)
 
@@ -306,8 +306,8 @@ class Molecule:
         for atom_index in sorted(self.atoms.keys()):
             v = g.add_vertex()
             vertex_types[v] = '{element}{valence}'.format(
-                element=self.atoms[atom_index]['element'],
-                valence=self.atoms[atom_index]['valence'] if self.use_neighbour_valences else '',
+                element=self.atoms[atom_index].element,
+                valence=self.atoms[atom_index].valence if self.use_neighbour_valences else '',
             )
             vertices[atom_index] = v
 
@@ -330,7 +330,7 @@ class Molecule:
                     for (element_1, element_2) in
                     list(
                         map(
-                            lambda bond: (self.atoms[bond[0]]['element'], self.atoms[bond[1]]['element']),
+                            lambda bond: (self.atoms[bond[0]].element, self.atoms[bond[1]].element),
                             self.bonds,
                         )
                     )
@@ -344,7 +344,7 @@ class Molecule:
             lambda charges: dict(list(zip(self.sorted_atom_ids(), charges))),
             product(
                 *[
-                    POSSIBLE_CHARGES[atom['element']]
+                    POSSIBLE_CHARGES[atom.element]
                     for atom in self.sorted_atoms()
                 ]
             ),
@@ -399,7 +399,7 @@ class Molecule:
             print(
                 'is_valid',
                 [
-                    (atom_id, sum(map(on_bond_order, group)), FULL_VALENCES[self.atoms[atom_id]['element']] + charges[atom_id])
+                    (atom_id, sum(map(on_bond_order, group)), FULL_VALENCES[self.atoms[atom_id].element] + charges[atom_id])
                     for (atom_id, group) in
                     groupby(
                         sorted(
@@ -421,7 +421,7 @@ class Molecule:
 
         valid = all(
             [
-                sum(map(on_bond_order, group)) == FULL_VALENCES[self.atoms[atom_id]['element']] + charges[atom_id]
+                sum(map(on_bond_order, group)) == FULL_VALENCES[self.atoms[atom_id].element] + charges[atom_id]
                 for (atom_id, group) in
                 groupby(
                     sorted(
@@ -460,7 +460,7 @@ class Molecule:
                 sorted(
                     [
                         ''.join(
-                            sorted([self.atoms[atom_id]['element'] for atom_id in bond]),
+                            sorted([self.atoms[atom_id].element for atom_id in bond]),
                         )
                         for (bond, bond_order) in self.bond_orders
                         if bond_order == 2

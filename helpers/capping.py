@@ -1,7 +1,7 @@
 from typing import Any, List, Optional
 
 from fragment_capping.helpers.molecule import Uncapped_Molecule, Molecule, DEBUG, DEBUG_MOLECULE
-from fragment_capping.helpers.types_helpers import Fragment
+from fragment_capping.helpers.types_helpers import Fragment, Atom
 
 from dihedral_fragments.dihedral_fragment import element_valence_for_atom, NO_VALENCE
 
@@ -62,13 +62,14 @@ def uncapped_molecule_for_dihedral_fragment(dihedral_fragment: Fragment) -> Unca
             list(zip(
                 ids,
                 [
-                    {
-                        'valence': valences[atom_id],
-                        'element': elements[atom_id],
-                        'index':atom_id,
-                        'capped': (atom_id not in (neighbours_id_1 + neighbours_id_4)),
-                    }
-                    for atom_id in ids],
+                    Atom(
+                        atom_id,
+                        elements[atom_id],
+                        valences[atom_id],
+                        atom_id not in (neighbours_id_1 + neighbours_id_4),
+                    )
+                    for atom_id in ids
+                ],
 
             ))
         ),
@@ -91,12 +92,12 @@ def uncapped_molecule_for_dihedral_fragment(dihedral_fragment: Fragment) -> Unca
             ]
         else:
             NEW_ATOM_ID = -1
-            NEW_ATOM = {
-                'valence': NO_VALENCE,
-                'element': 'C',
-                'index': NEW_ATOM_ID, # This will get overwritten by Molecule.add_atom
-                'capped': False,
-            }
+            NEW_ATOM = Atom(
+                NEW_ATOM_ID, # This will get overwritten by Molecule.add_atom
+                'C',
+                NO_VALENCE,
+                False,
+            )
             atom_chain_id = [i_id] + [molecule.add_atom(NEW_ATOM) for i in range(n - 1)] + [j_id]
             new_bonds = zip(atom_chain_id[:-1], atom_chain_id[1:])
             molecule.bonds += new_bonds
