@@ -1,4 +1,4 @@
-from typing import Any, Optional, List, Tuple
+from typing import Any, Optional, List, Tuple, Dict
 from copy import deepcopy
 from operator import itemgetter
 from itertools import groupby, product
@@ -7,13 +7,15 @@ from functools import reduce
 from os.path import join
 
 from fragment_capping.helpers.types_helpers import Fragment, ATB_Molid, Atom
-from fragment_capping.helpers.parameters import FULL_VALENCES, POSSIBLE_BOND_ORDERS, POSSIBLE_CHARGES, get_capping_options
+from fragment_capping.helpers.parameters import FULL_VALENCES, POSSIBLE_BOND_ORDERS, POSSIBLE_CHARGES, get_capping_options, new_atom_for_capping_strategy
 
 from dihedral_fragments.dihedral_fragment import element_valence_for_atom, on_asc_number_electron_then_asc_valence, NO_VALENCE
 
 DRAW_GRAPHS = False
 
 DEBUG = False
+
+DEBUG_MOLECULE = lambda molecule: (molecule.formula() == 'C6H12')
 
 class Molecule:
     def __init__(self, atoms: Any, bonds: Any, name: Optional[str] = None) -> None:
@@ -36,18 +38,18 @@ class Molecule:
     def assert_use_neighbour_valences(self) -> None:
         assert self.use_neighbour_valences, 'ERROR: self.use_neighbour_valences is set to False'
 
-    def valence(self, atom_id):
+    def valence(self, atom_id: int):
         self.assert_use_neighbour_valences()
         return self.atoms[atom_id]['valence']
 
-    def element(self, atom_id):
+    def element(self, atom_id: int):
         return self.atoms[atom_id]['element']
 
     def ids(self):
         return list(self.atoms.keys())
 
     def __str__(self) -> str:
-        return 'Molecule; atoms={0}; bonds={1}'.format(self.atoms, self.bonds)
+        return 'Molecule; atoms={0}; bonds={1}; formula={2}'.format(self.atoms, self.bonds, self.formula(charge=False))
 
     def add_atom(self, atom: Atom) -> Any:
         highest_id = max(self.atoms.keys())
@@ -55,7 +57,7 @@ class Molecule:
         self.atoms[atom_id] = dict(list(atom.items()) + list(dict(index=atom_id).items()))
         return atom_id
 
-    def capped_molecule_with(self, capping_strategies, atoms_need_capping):
+    def capped_molecule_with(self, capping_strategies: List[Any], atoms_need_capping: Any) -> Any:
         capped_molecule = deepcopy(self)
 
         for (atom, capping_strategy) in zip(atoms_need_capping, capping_strategies):
@@ -105,7 +107,7 @@ class Molecule:
             capped_molecule.assign_bond_orders_and_charges()
             return capped_molecule
         except AssertionError as e:
-            if DEBUG:
+            if DEBUG and DEBUG_MOLECULE(capped_molecule):
                 print('AssertionError for capped molecule {0}:\n{1}'.format(
                     capped_molecule,
                     str(e),
@@ -133,11 +135,18 @@ class Molecule:
     def get_best_capped_molecule(self, debug: bool = False):
         capping_options = get_capping_options(self.use_neighbour_valences)
 
+        def possible_capping_streategies_for_atom(atom: Atom):
+            return [
+                capping_strategy
+                for capping_strategy in capping_options[self.atom_desc(atom)]
+                #if new_atom_for_capping_strategy(capping_strategy) <= FULL_VALENCES[self.atom_desc(atom)] - min(POSSIBLE_CHARGES[atom['element']]) - atom['valence']
+            ]
+
         atoms_need_capping = [atom for atom in self.sorted_atoms() if not atom['capped']]
         capping_schemes = list(
             product(
                 *[
-                    capping_options[self.atom_desc(atom)]
+                    possible_capping_streategies_for_atom(atom)
                     for atom in atoms_need_capping
                 ]
             ),
@@ -189,7 +198,7 @@ class Molecule:
         best_molecule = possible_capped_molecules[0]
         return best_molecule
 
-    def formula(self, charge=False):
+    def formula(self, charge: bool = False) -> str:
         elements =  [atom['element'] for atom in list(self.atoms.values())]
 
         return ''.join(
@@ -217,10 +226,10 @@ class Molecule:
             ),
         )
 
-    def n_atoms(self):
+    def n_atoms(self) -> int:
         return len(self.atoms)
 
-    def dummy_pdb(self):
+    def dummy_pdb(self) -> str:
         from atb_helpers.pdb import PDB_TEMPLATE, pdb_conect_line
         io = StringIO()
 
@@ -265,7 +274,7 @@ class Molecule:
 
         return io.getvalue()
 
-    def representation(self, out_format):
+    def representation(self, out_format: str) -> str:
         assert out_format in ('smiles', 'inchi'), 'Wrong representation format: {0}'.format(out_format)
 
         from atb_helpers.babel import babel_output
@@ -276,13 +285,13 @@ class Molecule:
             dont_add_H=True,
         )
 
-    def smiles(self):
+    def smiles(self) -> str:
         return self.representation('smiles')
 
-    def inchi(self):
+    def inchi(self) -> str:
         return self.representation('inchi')
 
-    def graph(self):
+    def graph(self) -> Any:
         try:
             from graph_tool.all import Graph
         except:
@@ -307,13 +316,13 @@ class Molecule:
 
         return g
 
-    def sorted_atoms(self):
-        return [atom  for (atom_id, atom) in sorted(self.atoms.items())]
+    def sorted_atoms(self) -> List[Atom]:
+        return [atom for (atom_id, atom) in sorted(self.atoms.items())]
 
-    def sorted_atom_ids(self):
-        return [atom_id  for (atom_id, atom) in sorted(self.atoms.items())]
+    def sorted_atom_ids(self) -> List[int]:
+        return [atom_id for (atom_id, atom) in sorted(self.atoms.items())]
 
-    def assign_bond_orders_and_charges(self):
+    def assign_bond_orders_and_charges(self) -> None:
         possible_bond_orders_lists = list(
             product(
                 *[
@@ -357,7 +366,7 @@ class Molecule:
             key=lambda __charges: sum(map(abs, list(__charges[1].values()))),
         )
 
-        if DEBUG:
+        if DEBUG and DEBUG_MOLECULE(self):
             if len(acceptable_bond_orders_and_charges) != 1:
                 print('acceptable_bond_orders_and_charges: {0}'.format(acceptable_bond_orders_and_charges))
 
@@ -365,19 +374,19 @@ class Molecule:
 
         self.bond_orders, self.charges = acceptable_bond_orders_and_charges[0]
 
-    def netcharge(self):
+    def netcharge(self) -> int:
         try:
             return sum(self.charges.values())
         except:
             raise Exception('Assign charges and bond_orders first.')
 
-    def net_abs_charges(self):
+    def net_abs_charges(self) -> int:
         try:
             return sum(map(abs, list(self.charges.values())))
         except:
             raise Exception('Assign charges and bond_orders first.')
 
-    def is_valid(self, bond_orders, charges):
+    def is_valid(self, bond_orders: List[int], charges: Dict[int, int]) -> bool:
         assert len(self.bonds) == len(bond_orders), 'Unmatched bonds and bond_orders: {0} != {1}'.format(
             len(self.bonds),
             len(bond_orders),
@@ -385,6 +394,30 @@ class Molecule:
 
         on_atom_id = lambda atom_id_bond_order: atom_id_bond_order[0]
         on_bond_order = lambda atom_id_bond_order1: atom_id_bond_order1[1]
+
+        if DEBUG and DEBUG_MOLECULE(self):
+            print(
+                'is_valid',
+                [
+                    (atom_id, sum(map(on_bond_order, group)), FULL_VALENCES[self.atoms[atom_id]['element']] + charges[atom_id])
+                    for (atom_id, group) in
+                    groupby(
+                        sorted(
+                            reduce(
+                                lambda acc, e: acc + e,
+                                [
+                                    ((atom_id_1, bond_order), (atom_id_2, bond_order))
+                                    for ((atom_id_1, atom_id_2), bond_order) in
+                                    zip(self.bonds, bond_orders)
+                                ],
+                                (),
+                            ),
+                            key=on_atom_id,
+                        ),
+                        key=on_atom_id,
+                    )
+                ],
+            )
 
         valid = all(
             [
@@ -410,7 +443,7 @@ class Molecule:
 
         return valid
 
-    def double_bonds_fitness(self):
+    def double_bonds_fitness(self) -> Tuple[int, int, int]:
         '''Sorted ASC (low fitness is better)'''
 
         BEST_DOUBLE_BONDS = (

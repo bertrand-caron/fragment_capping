@@ -1,11 +1,9 @@
 from typing import Any, List, Optional
 
-from fragment_capping.helpers.molecule import Uncapped_Molecule, Molecule
+from fragment_capping.helpers.molecule import Uncapped_Molecule, Molecule, DEBUG, DEBUG_MOLECULE
 from fragment_capping.helpers.types_helpers import Fragment
 
 from dihedral_fragments.dihedral_fragment import element_valence_for_atom, NO_VALENCE
-
-DEBUG = False
 
 def best_capped_molecule_for_dihedral_fragment(fragment_str: Fragment) -> Molecule:
     molecule = uncapped_molecule_for_dihedral_fragment(fragment_str).get_best_capped_molecule()
@@ -102,6 +100,9 @@ def uncapped_molecule_for_dihedral_fragment(dihedral_fragment: Fragment) -> Unca
             atom_chain_id = [i_id] + [molecule.add_atom(NEW_ATOM) for i in range(n - 1)] + [j_id]
             new_bonds = zip(atom_chain_id[:-1], atom_chain_id[1:])
             molecule.bonds += new_bonds
+
+    if DEBUG:
+        print(molecule)
 
     return molecule
 
