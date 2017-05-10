@@ -1,40 +1,61 @@
 from typing import NamedTuple, Any, List, Sequence, Tuple, Union, Dict
-from itertools import groupby
+from itertools import groupby, product
 from re import match, search
 
 from fragment_capping.helpers.iterables import concat
 
 FULL_VALENCES = {
-    'C': 4,
-    'N': 3,
-    'O': 2,
-    'H': 1,
-    'S': 2,
-    'P': 5,
-    'CL': 1,
+    'C': {4},
+    'N': {3},
+    'O': {2},
+    'H': {1},
+    'S': {2, 6},
+    'P': {5},
+    'CL': {1},
+    'BR': {1},
+    'F': {1},
+    'I': {1},
+    'B': {3},
 }
 
 POSSIBLE_BOND_ORDERS = {
-    'S': (1, 2,),
-    'C': (1, 2,),
-    'H': (1,),
-    'O': (1, 2,),
-    'N': (1, 2,),
-    'P': (1, 2,),
-    'CL': (1,),
+    'S': {1, 2},
+    'C': {1, 2},
+    'H': {1},
+    'O': {1, 2},
+    'N': {1, 2},
+    'P': {1, 2},
+    'CL': {1},
+    'BR': {1},
+    'F': {1},
+    'I': {1},
+    'B': {1}
 }
 
 POSSIBLE_CHARGES = {
-    'S': (0,),
-    'C': (0,),
-    'H': (0,),
-    'O': (0, -1,),
-    'N': (0, +1,),
-    'P': (0,),
-    'CL': (0,),
+    'S': {0},
+    'C': {0},
+    'H': {0},
+    'O': {0, -1},
+    'N': {0, +1},
+    'P': {0},
+    'CL': {0},
+    'BR': {0},
+    'F': {0},
+    'I': {0},
+    'B': {0},
 }
 
-Capping_Strategy = NamedTuple('Capping_Strategy', [('new_atoms', Sequence[str]), ('new_bonds', Sequence[Tuple[int, int]]), ('new_valences', Sequence[int])])
+assert set(FULL_VALENCES.keys()) == set(POSSIBLE_BOND_ORDERS.keys()) == set(POSSIBLE_CHARGES.keys())
+
+Capping_Strategy = NamedTuple(
+    'Capping_Strategy',
+    [
+        ('new_atoms', Sequence[str]),
+        ('new_bonds', Sequence[Tuple[int, int]]),
+        ('new_valences', Sequence[int]),
+    ],
+)
 
 NO_CAP = Capping_Strategy((), (), ())
 H_CAP = Capping_Strategy(('H',), ((0, 1),), (1,))
@@ -43,6 +64,7 @@ H3_CAP = Capping_Strategy(('H', 'H', 'H'), ((0, 1), (0, 2), (0, 3)), (1, 1, 1))
 H4_CAP = Capping_Strategy(('H', 'H', 'H', 'H'), ((0, 1), (0, 2), (0, 3), (0, 4)), (1, 1, 1, 1))
 H_CH2_CAP = Capping_Strategy(('H', 'C', 'H', 'H'), ((0, 1), (0, 2), (2, 3), (2, 4)), (1, 3, 1, 1))
 CH3_CAP = Capping_Strategy(('C', 'H', 'H', 'H'), ((0, 1), (1, 2), (1, 3), (1, 4)), (4, 1, 1, 1))
+O3_CAP = Capping_Strategy(('O', 'O', 'O'), ((0, 1), (0, 2), (0, 3)), (2, 1, 1))
 
 INDIVIDUAL_CAPPING_OPTIONS = {
     'H1': [NO_CAP],
@@ -55,8 +77,17 @@ INDIVIDUAL_CAPPING_OPTIONS = {
     'N2': [H_CAP, CH3_CAP],
     'N3': [H2_CAP],
     'N4': [H3_CAP],
-    'P5': [H4_CAP],
+    'P5': [O3_CAP],
     'CL1': [NO_CAP],
+    'BR1': [NO_CAP],
+    'F1': [NO_CAP],
+    'I1': [NO_CAP],
+    'B3': [H2_CAP, H_CAP],
+}
+
+POSSIBLE_BOND_ORDER_FOR_PAIR = {
+    (element_1, element_2): POSSIBLE_BOND_ORDERS[element_1] & POSSIBLE_BOND_ORDERS[element_2]
+    for (element_1, element_2) in product(POSSIBLE_BOND_ORDERS.keys(), repeat=2)
 }
 
 def new_atom_for_capping_strategy(capping_strategy: Capping_Strategy) -> int:

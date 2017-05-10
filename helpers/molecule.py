@@ -7,7 +7,7 @@ from functools import reduce
 from os.path import join
 
 from fragment_capping.helpers.types_helpers import Fragment, ATB_Molid, Atom
-from fragment_capping.helpers.parameters import FULL_VALENCES, POSSIBLE_BOND_ORDERS, POSSIBLE_CHARGES, get_capping_options, new_atom_for_capping_strategy
+from fragment_capping.helpers.parameters import FULL_VALENCES, POSSIBLE_BOND_ORDERS, POSSIBLE_CHARGES, get_capping_options, new_atom_for_capping_strategy, POSSIBLE_BOND_ORDER_FOR_PAIR
 
 from dihedral_fragments.dihedral_fragment import element_valence_for_atom, on_asc_number_electron_then_asc_valence, NO_VALENCE
 
@@ -16,6 +16,11 @@ DRAW_GRAPHS = False
 DEBUG = False
 
 DEBUG_MOLECULE = lambda molecule: (molecule.formula() == 'C6H12')
+
+MAXIMUM_PERMUTATION_NUMBER = 10000
+
+class Too_Many_Permutations(Exception):
+    pass
 
 class Molecule:
     def __init__(self, atoms: Any, bonds: Any, name: Optional[str] = None) -> None:
@@ -149,7 +154,7 @@ class Molecule:
             return [
                 capping_strategy
                 for capping_strategy in capping_options[self.atom_desc(atom)]
-                if new_atom_for_capping_strategy(capping_strategy) <= FULL_VALENCES[self.atom_desc(atom)] - min(POSSIBLE_CHARGES[atom.element]) - neighbour_counts[atom.index]
+                if new_atom_for_capping_strategy(capping_strategy) <= max(FULL_VALENCES[self.atom_desc(atom)]) - min(POSSIBLE_CHARGES[atom.element]) - neighbour_counts[atom.index]
             ]
 
         atoms_need_capping = [atom for atom in self.sorted_atoms() if not atom.capped]
@@ -161,6 +166,9 @@ class Molecule:
                 ]
             ),
         )
+
+        if len(capping_schemes) >= MAXIMUM_PERMUTATION_NUMBER:
+            raise Too_Many_Permutations(len(capping_schemes))
 
         if debug:
             print('atoms_need_capping: {0}'.format(atoms_need_capping))
@@ -336,7 +344,7 @@ class Molecule:
         possible_bond_orders_lists = list(
             product(
                 *[
-                    set.intersection(set(POSSIBLE_BOND_ORDERS[element_1]), set(POSSIBLE_BOND_ORDERS[element_2]))
+                    POSSIBLE_BOND_ORDER_FOR_PAIR[element_1, element_2]
                     for (element_1, element_2) in
                     list(
                         map(
@@ -431,7 +439,7 @@ class Molecule:
 
         valid = all(
             [
-                sum(map(on_bond_order, group)) == FULL_VALENCES[self.atoms[atom_id].element] + charges[atom_id]
+                sum(map(on_bond_order, group)) - charges[atom_id] in FULL_VALENCES[self.atoms[atom_id].element]
                 for (atom_id, group) in
                 groupby(
                     sorted(
