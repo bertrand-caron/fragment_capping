@@ -372,6 +372,8 @@ class Molecule:
 
         possible_bond_orders_and_charges = list(product(possible_bond_orders_lists, possible_charges_dicts))
 
+        print('INFO: Found {0} posible charge and bond order assignments'.format(len(possible_bond_orders_and_charges)))
+
         acceptable_bond_orders_and_charges = sorted(
             [
                 (

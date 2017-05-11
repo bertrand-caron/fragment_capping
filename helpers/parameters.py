@@ -1,5 +1,6 @@
 from typing import NamedTuple, Any, List, Sequence, Tuple, Union, Dict
 from itertools import groupby, product
+from functools import reduce
 from re import match, search
 
 from fragment_capping.helpers.iterables import concat
@@ -9,7 +10,7 @@ FULL_VALENCES = {
     'N': {3},
     'O': {2},
     'H': {1},
-    'S': {2, 6},
+    'S': {2, 4, 6},
     'P': {5},
     'CL': {1},
     'BR': {1},
@@ -20,10 +21,10 @@ FULL_VALENCES = {
 
 POSSIBLE_BOND_ORDERS = {
     'S': {1, 2},
-    'C': {1, 2},
+    'C': {1, 2, 3},
     'H': {1},
     'O': {1, 2},
-    'N': {1, 2},
+    'N': {1, 2, 3},
     'P': {1, 2},
     'CL': {1},
     'BR': {1},
@@ -72,8 +73,12 @@ INDIVIDUAL_CAPPING_OPTIONS = {
     'O2': [H_CAP],
     'S1': [NO_CAP],
     'S2': [H_CAP],
+    'S4': [NO_CAP],
+    'S6': [NO_CAP],
     'C4': [H2_CAP, H3_CAP],
     'C3': [H_CAP, H2_CAP, H_CH2_CAP],
+    'C2': [H_CAP],
+    'N1': [NO_CAP],
     'N2': [H_CAP, CH3_CAP],
     'N3': [H2_CAP],
     'N4': [H3_CAP],
@@ -84,6 +89,15 @@ INDIVIDUAL_CAPPING_OPTIONS = {
     'I1': [NO_CAP],
     'B3': [H2_CAP, H_CAP],
 }
+
+ALL_ELEMENT_VALENCE_COMBINATIONS = [
+    '{element}{neighbour_count}'.format(element=element, neighbour_count=valence)
+    for (element, valence) in reduce(
+        lambda acc, e: acc + e,
+        [list(product([element], valences))for (element, valences) in FULL_VALENCES.items()],
+        [],
+    )
+]
 
 POSSIBLE_BOND_ORDER_FOR_PAIR = {
     (element_1, element_2): POSSIBLE_BOND_ORDERS[element_1] & POSSIBLE_BOND_ORDERS[element_2]
