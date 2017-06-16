@@ -14,6 +14,7 @@ from fragment_capping.cache import cached
 from fragment_capping.helpers.types_helpers import Fragment, ATB_Molid, Atom
 from fragment_capping.helpers.molecule import Molecule, Too_Many_Permutations
 from fragment_capping.helpers.capping import best_capped_molecule_for_dihedral_fragment
+from fragment_capping.helpers.babel import energy_minimised_pdb
 
 from API_client.api import API, HTTPError
 from dihedral_fragments.dihedral_fragment import element_valence_for_atom, on_asc_number_electron_then_asc_valence, NO_VALENCE
@@ -77,11 +78,13 @@ def molid_after_capping_fragment(fragment: Fragment, count: Optional[int] = None
 
     else:
         print('Capped fragment not found in ATB.')
-        print(molecule.formula())
+        print('Formula', molecule.formula())
+        print('Smiles', molecule.smiles())
+        print('Dummy PDB')
         print(molecule.dummy_pdb())
-        print(molecule.smiles())
-        print(molecule.write_graph('BEST'))
-        print(molecule.bond_orders)
+        print('Energy Minimised Dummy PDB')
+        print(energy_minimised_pdb(pdb_str=molecule.dummy_pdb()))
+        molecule.write_graph('BEST')
         best_molid = None
 
     print()
