@@ -80,6 +80,8 @@ def molid_after_capping_fragment(fragment: Fragment, count: Optional[int] = None
         print(molecule.formula())
         print(molecule.dummy_pdb())
         print(molecule.smiles())
+        print(molecule.write_graph('BEST'))
+        print(molecule.bond_orders)
         best_molid = None
 
     print()

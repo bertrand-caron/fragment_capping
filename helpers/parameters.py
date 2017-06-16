@@ -49,6 +49,8 @@ POSSIBLE_CHARGES = {
 
 assert set(FULL_VALENCES.keys()) == set(POSSIBLE_BOND_ORDERS.keys()) == set(POSSIBLE_CHARGES.keys())
 
+ALL_ELEMENTS = list(FULL_VALENCES.keys())
+
 Capping_Strategy = NamedTuple(
     'Capping_Strategy',
     [
@@ -137,3 +139,28 @@ def get_capping_options(use_neighbour_valences: bool, debug: bool = False) -> Di
         print([(key, value) for (key, value) in list(capping_options.items())])
 
     return capping_options
+
+DOUBLE_BOND_ELEMENTS = [
+    element
+    for element in ALL_ELEMENTS
+    if 2 in POSSIBLE_BOND_ORDERS[element]
+]
+
+ALL_POSSIBLE_DOUBLE_BONDS = {
+    frozenset([element_1, element_2])
+    for (element_1, element_2) in product(DOUBLE_BOND_ELEMENTS, DOUBLE_BOND_ELEMENTS)
+}
+
+BEST_DOUBLE_BONDS = (
+    # From best, to worst
+    frozenset(['C', 'O']),
+    frozenset(['C', 'N']),
+    frozenset(['C', 'C']),
+    frozenset(['P', 'O']),
+    frozenset(['P', 'C']),
+)
+
+ENFORCE_ALL_DOUBLE_BOND_COMBINATIONS = False
+
+if ENFORCE_ALL_DOUBLE_BOND_COMBINATIONS:
+    assert set(BEST_DOUBLE_BONDS) == ALL_POSSIBLE_DOUBLE_BONDS, ALL_POSSIBLE_DOUBLE_BONDS - set(BEST_DOUBLE_BONDS)

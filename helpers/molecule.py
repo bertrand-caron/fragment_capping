@@ -1,4 +1,4 @@
-from typing import Any, Optional, List, Tuple, Dict
+from typing import Any, Optional, List, Tuple, Dict, Union
 from copy import deepcopy
 from operator import itemgetter
 from itertools import groupby, product
@@ -7,11 +7,11 @@ from functools import reduce
 from os.path import join
 
 from fragment_capping.helpers.types_helpers import Fragment, ATB_Molid, Atom
-from fragment_capping.helpers.parameters import FULL_VALENCES, POSSIBLE_BOND_ORDERS, POSSIBLE_CHARGES, get_capping_options, new_atom_for_capping_strategy, POSSIBLE_BOND_ORDER_FOR_PAIR
+from fragment_capping.helpers.parameters import FULL_VALENCES, POSSIBLE_BOND_ORDERS, POSSIBLE_CHARGES, get_capping_options, new_atom_for_capping_strategy, POSSIBLE_BOND_ORDER_FOR_PAIR, BEST_DOUBLE_BONDS
 
 from dihedral_fragments.dihedral_fragment import element_valence_for_atom, on_asc_number_electron_then_asc_valence, NO_VALENCE
 
-DRAW_GRAPHS = False
+DRAW_ALL_GRAPHS = True
 
 DEBUG = False
 
@@ -195,16 +195,10 @@ class Molecule:
             len(capping_schemes),
         ))
 
-        if DRAW_GRAPHS:
+        if DRAW_ALL_GRAPHS:
             try:
-                from py_graphs.pdb import graph_from_pdb
-                from py_graphs.moieties import draw_graph
                 for (i, molecule) in enumerate(possible_capped_molecules):
-                    graph = molecule.graph()
-                    draw_graph(
-                        graph,
-                        fnme=join('graphs' ,'_'.join((self.name, str(i))) + '.png'),
-                    )
+                    molecule.write_graph(i)
             except Exception as e:
                 print(
                     'ERROR: Could not plot graphs (error was: {0})'.format(
@@ -215,6 +209,26 @@ class Molecule:
 
         best_molecule = possible_capped_molecules[0]
         return best_molecule
+
+    def write_graph(self, unique_id: Union[str, int]) -> str:
+        graph_filepath = join('graphs' ,'_'.join((self.name, str(unique_id))) + '.png')
+        try:
+            from py_graphs.pdb import graph_from_pdb
+            from py_graphs.moieties import draw_graph
+            graph = self.graph()
+            draw_graph(
+                graph,
+                fnme=graph_filepath,
+                force_regen=True,
+            )
+        except Exception as e:
+            print(
+                'ERROR: Could not plot graphs (error was: {0})'.format(
+                    str(e),
+                ),
+            )
+            raise
+        return graph_filepath
 
     def formula(self, charge: bool = False) -> str:
         elements =  [atom.element for atom in list(self.atoms.values())]
@@ -271,8 +285,8 @@ class Molecule:
                 'R',
                 '',
                 pdb_id,
-                1. * pdb_id,
-                0.,
+                1.5 * pdb_id,
+                0.1 * (-1 if pdb_id % 2 == 0 else +1),
                 0.,
                 '',
                 '',
@@ -466,29 +480,28 @@ class Molecule:
     def double_bonds_fitness(self) -> Tuple[int, int, int]:
         '''Sorted ASC (low fitness is better)'''
 
-        BEST_DOUBLE_BONDS = (
-            # From best, to worst
-            'CO',
-            'CN',
-            'CC',
-        )
-
         grouped_double_bonds = dict([
             (key, len(list(group)))
             for (key, group) in
             groupby(
                 sorted(
                     [
-                        ''.join(
-                            sorted([self.atoms[atom_id].element for atom_id in bond]),
-                        )
+                        frozenset([self.atoms[atom_id].element for atom_id in bond])
                         for (bond, bond_order) in self.bond_orders
                         if bond_order == 2
                     ]
                 ),
             )
         ])
-        return tuple([(- grouped_double_bonds[double_bond_type] if double_bond_type in grouped_double_bonds else 0) for double_bond_type in BEST_DOUBLE_BONDS])
+
+        assert set(grouped_double_bonds.keys()) <= set(BEST_DOUBLE_BONDS), 'Unexpected double bonds: {0}'.format(set(grouped_double_bonds.keys()) - set(BEST_DOUBLE_BONDS))
+
+        return tuple(
+            [
+                (- grouped_double_bonds[double_bond_type] if double_bond_type in grouped_double_bonds else 0)
+                for double_bond_type in BEST_DOUBLE_BONDS
+            ]
+        )
 
     def neighbours_for_atoms(self) -> Dict[int, int]:
         bond_atoms = reduce(
