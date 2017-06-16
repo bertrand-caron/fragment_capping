@@ -13,7 +13,7 @@ from dihedral_fragments.dihedral_fragment import element_valence_for_atom, on_as
 
 DRAW_ALL_GRAPHS = True
 
-DEBUG = False
+DEBUG = True
 
 DEBUG_MOLECULE = lambda molecule: (molecule.formula() == 'C6H12')
 
@@ -149,7 +149,7 @@ class Molecule:
                         atom,
                         capping_strategy,
                         new_atom_for_capping_strategy(capping_strategy),
-                        FULL_VALENCES[self.atom_desc(atom)] - min(POSSIBLE_CHARGES[atom.element]) - neighbour_counts[atom.index],
+                        max(FULL_VALENCES[self.atom_desc(atom)]) - min(POSSIBLE_CHARGES[atom.element]) - neighbour_counts[atom.index],
                     )
             return [
                 capping_strategy
@@ -177,6 +177,10 @@ class Molecule:
                 len(capping_options[self.atom_desc(atom)])
                 for atom in atoms_need_capping
             ]))
+
+        if DEBUG:
+            print('atoms_need_capping: {0}'.format(atoms_need_capping))
+            print('INFO: Will try all {0} possible capped molecules'.format(len(capping_schemes)))
 
         possible_capped_molecules = sorted(
             filter(
