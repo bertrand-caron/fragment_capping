@@ -5,7 +5,7 @@ from os import remove
 
 BABEL_MINIMISE_EXECUTABLE = '/usr/local/bin/obminimize'
 
-def energy_minimised_pdb(pdb_filepath: Optional[str] = None, pdb_str: Optional[str] = None, n_steps: int = 5000, convergence: float = 1E-1) -> str:
+def energy_minimised_pdb(pdb_filepath: Optional[str] = None, pdb_str: Optional[str] = None, n_steps: int = 5000, convergence: float = 1E-1, debug: bool = True) -> str:
     assert pdb_filepath is not None or pdb_str is not None, [pdb_filepath, pdb_str]
 
     if pdb_filepath is None:
@@ -23,6 +23,9 @@ def energy_minimised_pdb(pdb_filepath: Optional[str] = None, pdb_str: Optional[s
             n_steps=n_steps,
             convergence=convergence,
     )
+
+    if debug:
+        print(subprocess_call)
 
     try:
         stdout, stderr = map(

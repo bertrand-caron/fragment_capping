@@ -11,7 +11,7 @@ from urllib.request import urlopen
 from os.path import dirname, abspath, join
 
 from fragment_capping.cache import cached
-from fragment_capping.helpers.types_helpers import Fragment, ATB_Molid, Atom
+from fragment_capping.helpers.types_helpers import Fragment, ATB_Molid, Atom, FRAGMENT_CAPPING_DIR
 from fragment_capping.helpers.molecule import Molecule, Too_Many_Permutations
 from fragment_capping.helpers.capping import best_capped_molecule_for_dihedral_fragment
 from fragment_capping.helpers.babel import energy_minimised_pdb
@@ -26,8 +26,6 @@ api = API(
     debug=False,
     api_format='pickle',
 )
-
-THIS_DIR = dirname(abspath(__file__))
 
 def molid_after_capping_fragment(fragment: Fragment, count: Optional[int] = None, i: Optional[int] = None, fragments: Optional[List[Any]] = None) -> ATB_Molid:
     if all([x is not None for x in (count, i, fragments)]):
@@ -91,7 +89,7 @@ def molid_after_capping_fragment(fragment: Fragment, count: Optional[int] = None
 
     safe_fragment_name = fragment.replace('|', '_')
 
-    with open(join(THIS_DIR, 'pdbs/{fragment}.pdb'.format(fragment=safe_fragment_name)), 'w') as fh:
+    with open(join(FRAGMENT_CAPPING_DIR, 'pdbs/{fragment}.pdb'.format(fragment=safe_fragment_name)), 'w') as fh:
         fh.write(molecule.dummy_pdb())
 
     return best_molid

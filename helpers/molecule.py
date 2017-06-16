@@ -6,7 +6,7 @@ from io import StringIO
 from functools import reduce
 from os.path import join
 
-from fragment_capping.helpers.types_helpers import Fragment, ATB_Molid, Atom
+from fragment_capping.helpers.types_helpers import Fragment, ATB_Molid, Atom, FRAGMENT_CAPPING_DIR
 from fragment_capping.helpers.parameters import FULL_VALENCES, POSSIBLE_BOND_ORDERS, POSSIBLE_CHARGES, get_capping_options, new_atom_for_capping_strategy, POSSIBLE_BOND_ORDER_FOR_PAIR, BEST_DOUBLE_BONDS
 
 from dihedral_fragments.dihedral_fragment import element_valence_for_atom, on_asc_number_electron_then_asc_valence, NO_VALENCE
@@ -211,7 +211,7 @@ class Molecule:
         return best_molecule
 
     def write_graph(self, unique_id: Union[str, int]) -> str:
-        graph_filepath = join('graphs' ,'_'.join((self.name, str(unique_id))) + '.png')
+        graph_filepath = join(FRAGMENT_CAPPING_DIR, 'graphs' ,'_'.join((self.name, str(unique_id))) + '.png')
         try:
             from py_graphs.pdb import graph_from_pdb
             from py_graphs.moieties import draw_graph
@@ -285,9 +285,9 @@ class Molecule:
                 'R',
                 '',
                 pdb_id,
-                1.5 * pdb_id,
+                1.3 * pdb_id,
                 0.1 * (-1 if pdb_id % 2 == 0 else +1),
-                0.,
+                0.1 * (pdb_id % 5),
                 '',
                 '',
                 self.atoms[atom_index].element.title(),
@@ -386,7 +386,8 @@ class Molecule:
 
         possible_bond_orders_and_charges = list(product(possible_bond_orders_lists, possible_charges_dicts))
 
-        print('INFO: Found {0} posible charge and bond order assignments'.format(len(possible_bond_orders_and_charges)))
+        if DEBUG:
+            print('INFO: Found {0} posible charge and bond order assignments'.format(len(possible_bond_orders_and_charges)))
 
         acceptable_bond_orders_and_charges = sorted(
             [
