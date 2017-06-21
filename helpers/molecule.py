@@ -5,6 +5,7 @@ from itertools import groupby, product
 from io import StringIO
 from functools import reduce
 from os.path import join
+from hashlib import md5
 
 from fragment_capping.helpers.types_helpers import Fragment, ATB_Molid, Atom, FRAGMENT_CAPPING_DIR
 from fragment_capping.helpers.parameters import FULL_VALENCES, POSSIBLE_BOND_ORDERS, POSSIBLE_CHARGES, get_capping_options, new_atom_for_capping_strategy, POSSIBLE_BOND_ORDER_FOR_PAIR, BEST_DOUBLE_BONDS
@@ -23,10 +24,10 @@ class Too_Many_Permutations(Exception):
     pass
 
 class Molecule:
-    def __init__(self, atoms: Any, bonds: Any, name: Optional[str] = None) -> None:
+    def __init__(self, atoms: Dict[int, Atom], bonds: List[Tuple[int, int]], name: Optional[str] = None) -> None:
         self.atoms = atoms
         self.bonds = bonds
-        self.name = name
+        self.name = name if name is not None else md5((str(sorted(atoms.values())) + str(bonds)).encode()).hexdigest()
 
         self.use_neighbour_valences = (
             True
