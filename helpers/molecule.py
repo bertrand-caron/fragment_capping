@@ -1,4 +1,4 @@
-from typing import Any, Optional, List, Tuple, Dict, Union
+from typing import Any, Optional, List, Tuple, Dict, Union, Set, FrozenSet
 from copy import deepcopy
 from operator import itemgetter
 from itertools import groupby, product
@@ -12,9 +12,9 @@ from fragment_capping.helpers.parameters import FULL_VALENCES, POSSIBLE_BOND_ORD
 
 from dihedral_fragments.dihedral_fragment import element_valence_for_atom, on_asc_number_electron_then_asc_valence, NO_VALENCE
 
-DRAW_ALL_GRAPHS = True
+DRAW_ALL_POSSIBLE_GRAPHS = True
 
-DEBUG = True
+DEBUG = False
 
 DEBUG_MOLECULE = lambda molecule: (molecule.formula() == 'C6H12')
 
@@ -26,8 +26,8 @@ class Too_Many_Permutations(Exception):
 class Molecule:
     def __init__(self, atoms: Dict[int, Atom], bonds: List[Tuple[int, int]], name: Optional[str] = None) -> None:
         self.atoms = atoms
-        self.bonds = bonds
-        self.name = name if name is not None else md5((str(sorted(atoms.values())) + str(bonds)).encode()).hexdigest()
+        self.bonds = set(map(frozenset, bonds))
+        self.name = name if name is not None else md5((str(sorted(atoms.values())) + str(sorted(bonds))).encode()).hexdigest()
 
         self.use_neighbour_valences = (
             True
@@ -55,7 +55,7 @@ class Molecule:
         return list(self.atoms.keys())
 
     def __str__(self) -> str:
-        return 'Molecule; atoms={0}; bonds={1}; formula={2}'.format(self.atoms, self.bonds, self.formula(charge=False))
+        return 'Molecule(atoms={0}, bonds={1}; formula={2})'.format(self.atoms, self.bonds, self.formula(charge=False))
 
     def add_atom(self, atom: Atom) -> Any:
         highest_id = max(self.atoms.keys())
@@ -85,7 +85,7 @@ class Molecule:
                 for bond in fragment_bonds
             ]
 
-            capped_molecule.bonds += new_bonds
+            capped_molecule.bonds |= new_bonds
 
             assert len(new_ids) == len(new_atoms) == len(new_valences), 'Wrong dimensions: {0}, {1}, {2}'.format(
                 new_ids,
@@ -138,13 +138,13 @@ class Molecule:
             print('Bonds are: {0}'.format(self.bonds))
             raise
 
-    def get_best_capped_molecule(self, debug: bool = False):
+    def get_best_capped_molecule(self, draw_all_possible_graphs: bool = DRAW_ALL_POSSIBLE_GRAPHS, debug: bool = DEBUG):
         capping_options = get_capping_options(self.use_neighbour_valences)
 
         neighbour_counts = self.neighbours_for_atoms()
 
         def possible_capping_strategies_for_atom(atom: Atom):
-            if DEBUG:
+            if debug:
                 for capping_strategy in capping_options[self.atom_desc(atom)]:
                     print(
                         atom,
@@ -167,6 +167,19 @@ class Molecule:
                 ]
             ),
         )
+
+        assert len(capping_schemes) > 0, capping_schemes
+
+        if debug:
+            print(
+                [
+                    (
+                        atom,
+                        possible_capping_strategies_for_atom(atom),
+                    )
+                    for atom in atoms_need_capping
+                ]
+            )
 
         if len(capping_schemes) >= MAXIMUM_PERMUTATION_NUMBER:
             raise Too_Many_Permutations(len(capping_schemes))
@@ -200,7 +213,7 @@ class Molecule:
             len(capping_schemes),
         ))
 
-        if DRAW_ALL_GRAPHS:
+        if draw_all_possible_graphs:
             try:
                 for (i, molecule) in enumerate(possible_capped_molecules):
                     molecule.write_graph(i)
@@ -511,9 +524,9 @@ class Molecule:
 
     def neighbours_for_atoms(self) -> Dict[int, int]:
         bond_atoms = reduce(
-            lambda acc, e: acc + e,
+            lambda acc, e: acc + list(e),
             self.bonds,
-            (),
+            [],
         )
 
         return {
