@@ -1,4 +1,4 @@
-from typing import Any, Optional, List, Tuple, Dict, Union, Set, FrozenSet
+from typing import Any, Optional, List, Tuple, Dict, Union, Set, FrozenSet, Sequence
 from copy import deepcopy
 from operator import itemgetter
 from itertools import groupby, product
@@ -69,11 +69,21 @@ class Molecule:
     def __str__(self) -> str:
         return 'Molecule(atoms={0}, bonds={1}; formula={2})'.format(self.atoms, self.bonds, self.formula(charge=False))
 
-    def add_atom(self, atom: Atom) -> int:
+    def add_atom(self, atom: Atom, bonded_to: Optional[List[int]] = None) -> int:
         highest_id = max(self.atoms.keys())
         atom_id = highest_id + 1
         self.atoms[atom_id] = Atom(atom_id, *atom[1:])
+
+        if bonded_to is not None:
+            self.add_bonds({frozenset([bonded_atom_id, atom_id]) for bonded_atom_id in bonded_to})
+
         return atom_id
+
+    def add_bond(self, bond: FrozenSet[int]) -> None:
+        self.bonds |= set([bond])
+
+    def add_bonds(self, bonds: Sequence[FrozenSet[int]]) -> None:
+        self.bonds |= set(bonds)
 
     def capped_molecule_with(self, capping_strategies: List[Any], atoms_need_capping: Any, debug: bool = DEBUG, debug_line: Optional[Any] = None) -> Any:
         capped_molecule = deepcopy(self)
@@ -97,7 +107,7 @@ class Molecule:
                 for bond in fragment_bonds
             }
 
-            capped_molecule.bonds |= new_bonds
+            capped_molecule.add_bonds(new_bonds)
 
             assert len(new_ids) == len(new_atoms) == len(new_valences), 'Wrong dimensions: {0}, {1}, {2}'.format(
                 new_ids,
