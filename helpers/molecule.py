@@ -12,13 +12,19 @@ from fragment_capping.helpers.parameters import FULL_VALENCES, POSSIBLE_BOND_ORD
 
 from dihedral_fragments.dihedral_fragment import element_valence_for_atom, on_asc_number_electron_then_asc_valence, NO_VALENCE
 
-DRAW_ALL_POSSIBLE_GRAPHS = True
+DRAW_ALL_POSSIBLE_GRAPHS = False
 
 DEBUG = False
 
 DEBUG_MOLECULE = lambda molecule: (molecule.formula() == 'C6H12')
 
-MAXIMUM_PERMUTATION_NUMBER = 10000
+MAXIMUM_PERMUTATION_NUMBER = 200000
+
+def product_len(list_of_lists: List[List[Any]]) -> int:
+    _product_len = reduce(lambda acc, e: acc * len(e), list_of_lists, 1)
+    if _product_len > MAXIMUM_PERMUTATION_NUMBER and False:
+        raise Too_Many_Permutations(_product_len)
+    return _product_len
 
 class Too_Many_Permutations(Exception):
     pass
@@ -27,7 +33,7 @@ def max_valence(atom: Atom) -> int:
     return max(FULL_VALENCES[atom.element]) - min(POSSIBLE_CHARGES[atom.element])
 
 def min_valence(atom: Atom) -> int:
-    return (min(FULL_VALENCES[atom.element]) + max(POSSIBLE_CHARGES[atom.element])) // max(POSSIBLE_BOND_ORDERS[atom])
+    return (min(FULL_VALENCES[atom.element]) + max(POSSIBLE_CHARGES[atom.element])) // max(POSSIBLE_BOND_ORDERS[atom.element])
 
 class Molecule:
     def __init__(self, atoms: Dict[int, Atom], bonds: List[Tuple[int, int]], name: Optional[str] = None) -> None:
@@ -37,7 +43,7 @@ class Molecule:
 
         self.use_neighbour_valences = (
             True
-            if all([atom.valence is not NO_VALENCE for atom in list(self.atoms.values())])
+            if all([atom.valence is not NO_VALENCE for atom in self.atoms.values()])
             else False
         )
 
@@ -69,7 +75,7 @@ class Molecule:
         self.atoms[atom_id] = Atom(atom_id, *atom[1:])
         return atom_id
 
-    def capped_molecule_with(self, capping_strategies: List[Any], atoms_need_capping: Any) -> Any:
+    def capped_molecule_with(self, capping_strategies: List[Any], atoms_need_capping: Any, debug: bool = DEBUG, debug_line: Optional[Any] = None) -> Any:
         capped_molecule = deepcopy(self)
 
         for (atom, capping_strategy) in zip(atoms_need_capping, capping_strategies):
@@ -108,15 +114,17 @@ class Molecule:
                 )
             capped_molecule.atoms[atom_id] = Atom(*atom[:-1], True)
 
-        assert all([atom.capped for atom in list(capped_molecule.atoms.values())]), 'Some atoms were not capped: {0}'.format(
-            [atom for atom in list(capped_molecule.atoms.values()) if not atom.capped],
+        assert all([atom.capped for atom in capped_molecule.atoms.values()]), 'Some atoms were not capped: {0}'.format(
+            [atom for atom in capped_molecule.atoms.values() if not atom.capped],
         )
 
         if self.use_neighbour_valences:
             capped_molecule.check_valence()
 
         try:
-            capped_molecule.assign_bond_orders_and_charges()
+            if debug_line is not None:
+                print(debug_line)
+            capped_molecule.assign_bond_orders_and_charges(debug=debug)
             return capped_molecule
         except AssertionError as e:
             if DEBUG and DEBUG_MOLECULE(capped_molecule):
@@ -131,7 +139,7 @@ class Molecule:
         self.assert_use_neighbour_valences()
 
         try:
-            for atom in list(self.atoms.values()):
+            for atom in self.atoms.values():
                 atom_id = atom.index
                 assert atom.valence == sum([1 for bond in self.bonds if atom_id in bond]), '{2}: expected_valence={0} != number_neighbours={1} (bonds={3})'.format(
                     atom.valence,
@@ -217,8 +225,8 @@ class Molecule:
             filter(
                 lambda mol: mol is not None,
                 [
-                    self.capped_molecule_with(capping_strategies, atoms_need_capping)
-                    for capping_strategies in capping_schemes
+                    self.capped_molecule_with(capping_strategies, atoms_need_capping, debug=debug, debug_line='molecule {0}/{1}'.format(i, len(capping_schemes)))
+                    for (i, capping_strategies) in enumerate(capping_schemes)
                 ],
             ),
             key=lambda mol: (mol.net_abs_charges(), mol.n_atoms(), mol.double_bonds_fitness()),
@@ -266,7 +274,7 @@ class Molecule:
         return graph_filepath
 
     def formula(self, charge: bool = False) -> str:
-        elements =  [atom.element for atom in list(self.atoms.values())]
+        elements = [atom.element for atom in self.atoms.values()]
 
         return ''.join(
             list(map(
@@ -389,40 +397,44 @@ class Molecule:
     def sorted_atom_ids(self) -> List[int]:
         return [atom_id for (atom_id, atom) in sorted(self.atoms.items())]
 
-    def assign_bond_orders_and_charges(self) -> None:
-        possible_bond_orders_lists = list(
+    def assign_bond_orders_and_charges(self, debug: bool = DEBUG) -> None:
+        list_of_possible_bond_orders_per_bond = [
+            POSSIBLE_BOND_ORDER_FOR_PAIR[element_1, element_2]
+            for (element_1, element_2) in
+            map(
+                lambda bond: map(lambda atom_id: self.atoms[atom_id].element, bond),
+                self.bonds,
+            )
+        ]
+
+        number_bond_order_permutations = product_len(list_of_possible_bond_orders_per_bond)
+        assert number_bond_order_permutations > 0, 'No possible bond orders found'
+
+        possible_bond_orders_lists = product(
+            *list_of_possible_bond_orders_per_bond,
+        )
+
+        list_of_possible_charges_per_atom = [
+            POSSIBLE_CHARGES[atom.element]
+            for atom in self.sorted_atoms()
+        ]
+
+        number_charges_permutations = product_len(list_of_possible_charges_per_atom)
+        assert number_charges_permutations > 0, 'No possible charges assignment found'
+
+        possible_charges_dicts = map(
+            lambda charges: dict(list(zip(self.sorted_atom_ids(), charges))),
             product(
-                *[
-                    POSSIBLE_BOND_ORDER_FOR_PAIR[element_1, element_2]
-                    for (element_1, element_2) in
-                    list(
-                        map(
-                            lambda bond: map(lambda atom_id: self.atoms[atom_id].element, bond),
-                            self.bonds,
-                        )
-                    )
-                ]
+                *list_of_possible_charges_per_atom,
             ),
         )
 
-        assert len(possible_bond_orders_lists) >= 1, 'No possible bond orders found'
+        len_possible_bond_orders_and_charges = number_bond_order_permutations * number_charges_permutations
 
-        possible_charges_dicts = list(map(
-            lambda charges: dict(list(zip(self.sorted_atom_ids(), charges))),
-            product(
-                *[
-                    POSSIBLE_CHARGES[atom.element]
-                    for atom in self.sorted_atoms()
-                ]
-            ),
-        ))
+        if debug:
+            print('INFO: Found {0} posible charge and bond order assignments'.format(len_possible_bond_orders_and_charges))
 
-        assert len(possible_charges_dicts) >= 1, 'No possible charges assignment found'
-
-        possible_bond_orders_and_charges = list(product(possible_bond_orders_lists, possible_charges_dicts))
-
-        if DEBUG:
-            print('INFO: Found {0} posible charge and bond order assignments'.format(len(possible_bond_orders_and_charges)))
+        possible_bond_orders_and_charges = product(possible_bond_orders_lists, possible_charges_dicts)
 
         acceptable_bond_orders_and_charges = sorted(
             [
@@ -430,8 +442,8 @@ class Molecule:
                     list(zip(self.bonds, bond_orders)),
                     charges,
                 )
-                for (bond_orders, charges) in possible_bond_orders_and_charges
-                if self.is_valid(bond_orders, charges)
+                for (i, (bond_orders, charges)) in enumerate(possible_bond_orders_and_charges)
+                if self.is_valid(bond_orders, charges, debug=False, debug_line='{0}/{1}'.format(i, len_possible_bond_orders_and_charges))
             ],
             key=lambda __charges: sum(map(abs, list(__charges[1].values()))),
         )
@@ -440,7 +452,7 @@ class Molecule:
             if len(acceptable_bond_orders_and_charges) != 1:
                 print('acceptable_bond_orders_and_charges: {0}'.format(acceptable_bond_orders_and_charges))
 
-        assert len(acceptable_bond_orders_and_charges) >= 1, 'No valid bond_orders and charges found amongst {0} tried.'.format(len(possible_bond_orders_and_charges))
+        assert len(acceptable_bond_orders_and_charges) >= 1, 'No valid bond_orders and charges found amongst {0} tried.'.format(len_possible_bond_orders_and_charges)
 
         self.bond_orders, self.charges = acceptable_bond_orders_and_charges[0]
 
@@ -456,7 +468,7 @@ class Molecule:
         except:
             raise Exception('Assign charges and bond_orders first.')
 
-    def is_valid(self, bond_orders: List[int], charges: Dict[int, int]) -> bool:
+    def is_valid(self, bond_orders: List[int], charges: Dict[int, int], debug: bool = True, debug_line: Optional[Any] = None) -> bool:
         assert len(self.bonds) == len(bond_orders), 'Unmatched bonds and bond_orders: {0} != {1}'.format(
             len(self.bonds),
             len(bond_orders),
@@ -490,26 +502,27 @@ class Molecule:
             )
 
         valid = all(
-            [
-                sum(map(on_bond_order, group)) - charges[atom_id] in FULL_VALENCES[self.atoms[atom_id].element]
-                for (atom_id, group) in
-                groupby(
-                    sorted(
-                        reduce(
-                            lambda acc, e: acc + e,
-                            [
-                                ((atom_id_1, bond_order), (atom_id_2, bond_order))
-                                for ((atom_id_1, atom_id_2), bond_order) in
-                                zip(self.bonds, bond_orders)
-                            ],
-                            (),
-                        ),
-                        key=on_atom_id,
+            sum(map(on_bond_order, group)) - charges[atom_id] in FULL_VALENCES[self.atoms[atom_id].element]
+            for (atom_id, group) in
+            groupby(
+                sorted(
+                    reduce(
+                        lambda acc, e: acc + e,
+                        [
+                            ((atom_id_1, bond_order), (atom_id_2, bond_order))
+                            for ((atom_id_1, atom_id_2), bond_order) in
+                            zip(self.bonds, bond_orders)
+                        ],
+                        (),
                     ),
                     key=on_atom_id,
-                )
-            ],
+                ),
+                key=on_atom_id,
+            )
         )
+
+        if debug_line is not None and debug:
+            print(debug_line)
 
         return valid
 

@@ -27,7 +27,7 @@ api = API(
     api_format='pickle',
 )
 
-def molid_after_capping_fragment(fragment: Fragment, count: Optional[int] = None, i: Optional[int] = None, fragments: Optional[List[Any]] = None) -> ATB_Molid:
+def molid_after_capping_fragment(fragment: Fragment, count: Optional[int] = None, i: Optional[int] = None, fragments: Optional[List[Any]] = None, quick_run: bool = False) -> ATB_Molid:
     if all([x is not None for x in (count, i, fragments)]):
         print('Running fragment {0}/{1} (count={2}): "{3}"'.format(
             i + 1,
@@ -37,6 +37,9 @@ def molid_after_capping_fragment(fragment: Fragment, count: Optional[int] = None
         ))
 
     molecule = best_capped_molecule_for_dihedral_fragment(fragment)
+
+    if quick_run:
+        return molecule
 
     try:
         api_response = api.Molecules.structure_search(
