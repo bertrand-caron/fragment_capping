@@ -8,7 +8,7 @@ from os.path import join
 from hashlib import md5
 
 from fragment_capping.helpers.types_helpers import Fragment, ATB_Molid, Atom, FRAGMENT_CAPPING_DIR
-from fragment_capping.helpers.parameters import FULL_VALENCES, POSSIBLE_BOND_ORDERS, POSSIBLE_CHARGES, get_capping_options, new_atom_for_capping_strategy, POSSIBLE_BOND_ORDER_FOR_PAIR, BEST_DOUBLE_BONDS
+from fragment_capping.helpers.parameters import FULL_VALENCES, POSSIBLE_BOND_ORDERS, POSSIBLE_CHARGES, get_capping_options, new_atom_for_capping_strategy, POSSIBLE_BOND_ORDER_FOR_PAIR, BEST_DOUBLE_BONDS, Capping_Strategy
 
 from dihedral_fragments.dihedral_fragment import element_valence_for_atom, on_asc_number_electron_then_asc_valence, NO_VALENCE
 
@@ -44,20 +44,20 @@ class Molecule:
     def assert_use_neighbour_valences(self) -> None:
         assert self.use_neighbour_valences, 'ERROR: self.use_neighbour_valences is set to False'
 
-    def valence(self, atom_id: int):
+    def valence(self, atom_id: int) -> int:
         self.assert_use_neighbour_valences()
         return self.atoms[atom_id].valence
 
-    def element(self, atom_id: int):
+    def element(self, atom_id: int) -> str:
         return self.atoms[atom_id].element
 
-    def ids(self):
+    def ids(self) -> List[int]:
         return list(self.atoms.keys())
 
     def __str__(self) -> str:
         return 'Molecule(atoms={0}, bonds={1}; formula={2})'.format(self.atoms, self.bonds, self.formula(charge=False))
 
-    def add_atom(self, atom: Atom) -> Any:
+    def add_atom(self, atom: Atom) -> int:
         highest_id = max(self.atoms.keys())
         atom_id = highest_id + 1
         self.atoms[atom_id] = Atom(atom_id, *atom[1:])
@@ -75,15 +75,15 @@ class Molecule:
                 lambda id__: id__[0] + last_used_id + 1,
                 enumerate(new_atoms),
             ))
-            new_bonds = [
-                tuple(
-                    list(map(
+            new_bonds = {
+                frozenset(
+                    map(
                         lambda id: atom_id if id == 0 else id + last_used_id,
                         bond,
-                    )),
+                    ),
                 )
                 for bond in fragment_bonds
-            ]
+            }
 
             capped_molecule.bonds |= new_bonds
 
@@ -143,19 +143,19 @@ class Molecule:
 
         neighbour_counts = self.neighbours_for_atoms()
 
-        def possible_capping_strategies_for_atom(atom: Atom):
+        def possible_capping_strategies_for_atom(atom: Atom) -> List[Capping_Strategy]:
             if debug:
                 for capping_strategy in capping_options[self.atom_desc(atom)]:
                     print(
                         atom,
                         capping_strategy,
                         new_atom_for_capping_strategy(capping_strategy),
-                        max(FULL_VALENCES[self.atom_desc(atom)]) - min(POSSIBLE_CHARGES[atom.element]) - neighbour_counts[atom.index],
+                        max(FULL_VALENCES[atom.element]) - min(POSSIBLE_CHARGES[atom.element]) - neighbour_counts[atom.index],
                     )
             return [
                 capping_strategy
                 for capping_strategy in capping_options[self.atom_desc(atom)]
-                if new_atom_for_capping_strategy(capping_strategy) <= max(FULL_VALENCES[self.atom_desc(atom)]) - min(POSSIBLE_CHARGES[atom.element]) - neighbour_counts[atom.index]
+                if new_atom_for_capping_strategy(capping_strategy) <= max(FULL_VALENCES[atom.element]) - min(POSSIBLE_CHARGES[atom.element]) - neighbour_counts[atom.index]
             ]
 
         atoms_need_capping = [atom for atom in self.sorted_atoms() if not atom.capped]
@@ -317,7 +317,7 @@ class Molecule:
                 pdb_conect_line(
                     [pdb_id]
                     +
-                    [pdb_ids[bond[0] if bond[1] == atom_index else bond[1]] for bond in self.bonds if atom_index in bond]
+                    [pdb_ids[list(bond - frozenset([atom_index]))[0]] for bond in self.bonds if atom_index in bond]
                 ),
                 file=io,
             )
@@ -380,7 +380,7 @@ class Molecule:
                     for (element_1, element_2) in
                     list(
                         map(
-                            lambda bond: (self.atoms[bond[0]].element, self.atoms[bond[1]].element),
+                            lambda bond: map(lambda atom_id: self.atoms[atom_id].element, bond),
                             self.bonds,
                         )
                     )
