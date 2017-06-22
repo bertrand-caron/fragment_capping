@@ -3,7 +3,7 @@ from copy import deepcopy
 from operator import itemgetter
 from itertools import groupby, product
 from io import StringIO
-from functools import reduce
+from functools import reduce, lru_cache
 from os.path import join
 from hashlib import md5
 
@@ -22,6 +22,12 @@ MAXIMUM_PERMUTATION_NUMBER = 10000
 
 class Too_Many_Permutations(Exception):
     pass
+
+def max_valence(atom: Atom) -> int:
+    return max(FULL_VALENCES[atom.element]) - min(POSSIBLE_CHARGES[atom.element])
+
+def min_valence(atom: Atom) -> int:
+    return (min(FULL_VALENCES[atom.element]) + max(POSSIBLE_CHARGES[atom.element])) // max(POSSIBLE_BOND_ORDERS[atom])
 
 class Molecule:
     def __init__(self, atoms: Dict[int, Atom], bonds: List[Tuple[int, int]], name: Optional[str] = None) -> None:
@@ -146,9 +152,9 @@ class Molecule:
 
         def keep_capping_strategy_for_atom(capping_strategy: Capping_Strategy, atom: Atom):
             if self.use_neighbour_valences:
-                return new_atom_for_capping_strategy(capping_strategy) == atom.valence - neighbour_counts[atom.index]
+                return neighbour_counts[atom.index] + new_atom_for_capping_strategy(capping_strategy) == atom.valence
             else:
-                return new_atom_for_capping_strategy(capping_strategy) <= max(FULL_VALENCES[atom.element]) - min(POSSIBLE_CHARGES[atom.element]) - neighbour_counts[atom.index]
+                return min_valence(atom) <= neighbour_counts[atom.index] + new_atom_for_capping_strategy(capping_strategy) <= max_valence(atom)
 
         def possible_capping_strategies_for_atom(atom: Atom) -> List[Capping_Strategy]:
             if debug:
