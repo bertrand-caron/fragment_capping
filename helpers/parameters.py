@@ -77,7 +77,7 @@ INDIVIDUAL_CAPPING_OPTIONS = {
     'S2': [H_CAP],
     'S4': [NO_CAP],
     'S6': [NO_CAP],
-    'C4': [H2_CAP, H3_CAP],
+    'C4': [H_CAP, H2_CAP, H3_CAP],
     'C3': [H_CAP, H2_CAP, H_CH2_CAP],
     'C2': [H_CAP],
     'N1': [NO_CAP],

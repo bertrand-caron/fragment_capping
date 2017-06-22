@@ -121,18 +121,19 @@ class Molecule:
             return None
 
     def check_valence(self) -> None:
+        '''Check that the valence of each individual atom matches its current number of bonded atoms'''
         self.assert_use_neighbour_valences()
 
         try:
             for atom in list(self.atoms.values()):
                 atom_id = atom.index
-                assert atom.valence == sum([1 for bond in self.bonds if atom_id in bond]), 'Atom {2}: {0} != {1} (bonds={3})'.format(
+                assert atom.valence == sum([1 for bond in self.bonds if atom_id in bond]), '{2}: expected_valence={0} != number_neighbours={1} (bonds={3})'.format(
                     atom.valence,
                     sum([1 for bond in self.bonds if atom_id in bond]),
                     atom,
                     [bond for bond in self.bonds if atom_id in bond],
                 )
-        except:
+        except AssertionError:
             print('ERROR')
             print('Atoms are: {0}'.format(self.atoms))
             print('Bonds are: {0}'.format(self.bonds))
@@ -143,19 +144,25 @@ class Molecule:
 
         neighbour_counts = self.neighbours_for_atoms()
 
+        def keep_capping_strategy_for_atom(capping_strategy: Capping_Strategy, atom: Atom):
+            if self.use_neighbour_valences:
+                return new_atom_for_capping_strategy(capping_strategy) == atom.valence - neighbour_counts[atom.index]
+            else:
+                return new_atom_for_capping_strategy(capping_strategy) <= max(FULL_VALENCES[atom.element]) - min(POSSIBLE_CHARGES[atom.element]) - neighbour_counts[atom.index]
+
         def possible_capping_strategies_for_atom(atom: Atom) -> List[Capping_Strategy]:
             if debug:
+                print(atom)
                 for capping_strategy in capping_options[self.atom_desc(atom)]:
                     print(
-                        atom,
                         capping_strategy,
                         new_atom_for_capping_strategy(capping_strategy),
-                        max(FULL_VALENCES[atom.element]) - min(POSSIBLE_CHARGES[atom.element]) - neighbour_counts[atom.index],
+                        keep_capping_strategy_for_atom(capping_strategy, atom)
                     )
             return [
                 capping_strategy
                 for capping_strategy in capping_options[self.atom_desc(atom)]
-                if new_atom_for_capping_strategy(capping_strategy) <= max(FULL_VALENCES[atom.element]) - min(POSSIBLE_CHARGES[atom.element]) - neighbour_counts[atom.index]
+                if keep_capping_strategy_for_atom(capping_strategy, atom)
             ]
 
         atoms_need_capping = [atom for atom in self.sorted_atoms() if not atom.capped]
@@ -168,17 +175,21 @@ class Molecule:
             ),
         )
 
-        assert len(capping_schemes) > 0, capping_schemes
+        assert len(capping_schemes) > 0, [
+            (
+                atom,
+                possible_capping_strategies_for_atom(atom),
+            )
+            for atom in atoms_need_capping
+            if len(possible_capping_strategies_for_atom(atom)) == 0
+        ]
 
         if debug:
             print(
                 [
-                    (
-                        atom,
-                        possible_capping_strategies_for_atom(atom),
-                    )
+                    possible_capping_strategies_for_atom(atom)
                     for atom in atoms_need_capping
-                ]
+                ],
             )
 
         if len(capping_schemes) >= MAXIMUM_PERMUTATION_NUMBER:
