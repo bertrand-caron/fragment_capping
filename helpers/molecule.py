@@ -334,7 +334,7 @@ class Molecule:
             print(PDB_TEMPLATE.format(
                 'HETATM',
                 pdb_id,
-                'D',
+                (self.atoms[atom_index].element.title() + str(atom_index))[:4],
                 'R',
                 '',
                 pdb_id,
