@@ -63,10 +63,11 @@ def uncapped_molecule_for_dihedral_fragment(dihedral_fragment: Fragment) -> Unca
                 ids,
                 [
                     Atom(
-                        atom_id,
-                        elements[atom_id],
-                        valences[atom_id],
-                        atom_id not in (neighbours_id_1 + neighbours_id_4),
+                        index=atom_id,
+                        element=elements[atom_id],
+                        valence=valences[atom_id],
+                        capped=atom_id not in (neighbours_id_1 + neighbours_id_4),
+                        coordinates=None,
                     )
                     for atom_id in ids
                 ],
@@ -93,10 +94,11 @@ def uncapped_molecule_for_dihedral_fragment(dihedral_fragment: Fragment) -> Unca
         else:
             NEW_ATOM_ID = -1
             NEW_ATOM = Atom(
-                NEW_ATOM_ID, # This will get overwritten by Molecule.add_atom
-                'C',
-                NO_VALENCE,
-                False,
+                index=NEW_ATOM_ID, # This will get overwritten by Molecule.add_atom
+                element='C',
+                valence=NO_VALENCE,
+                capped=False,
+                coordinates=None,
             )
             atom_chain_id = [i_id] + [molecule.add_atom(NEW_ATOM) for i in range(n - 1)] + [j_id]
             new_bonds = zip(atom_chain_id[:-1], atom_chain_id[1:])

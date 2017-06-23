@@ -1,7 +1,10 @@
-from typing import NamedTuple, Any, List, Sequence, Tuple, Union, Dict, Set
+from typing import NamedTuple, Any, List, Sequence, Tuple, Union, Dict, Set, Optional
 from itertools import groupby, product, combinations_with_replacement
 from functools import reduce
 from re import match, search
+from numpy import array as vector
+from numpy.random import uniform
+from numpy.linalg import norm
 
 from fragment_capping.helpers.iterables import concat
 from fragment_capping.helpers.types_helpers import Atom
@@ -189,6 +192,13 @@ BEST_DOUBLE_BONDS = (
 
 ENFORCE_ALL_DOUBLE_BOND_COMBINATIONS = False
 
+def coordinates_n_angstroms_away_from(atom: Atom, n: float) -> Optional[Tuple[float, float, float]]:
+    if atom.coordinates is None:
+        return None
+    else:
+        random_vector = uniform(-1, 1, 3)
+        return tuple((vector(atom.coordinates) + random_vector / norm(random_vector) * n).tolist())
+
 if ENFORCE_ALL_DOUBLE_BOND_COMBINATIONS:
     assert set(BEST_DOUBLE_BONDS) == ALL_POSSIBLE_DOUBLE_BONDS, ALL_POSSIBLE_DOUBLE_BONDS - set(BEST_DOUBLE_BONDS)
 
@@ -199,10 +209,12 @@ if __name__ == '__main__':
                 (
                     element + str(valence),
                     possible_sets_of_bond_orders_for_atom(
-                        Atom(index=None, element=element, valence=valence, capped=True),
+                        Atom(index=None, element=element, valence=valence, capped=True, coordinates=None),
                     ),
                 )
                 for (element, valence) in map(lambda x: (x[:-1], int(x[-1])), INDIVIDUAL_CAPPING_OPTIONS.keys())
             ],
         ),
     )
+
+    print(coordinates_n_angstroms_away_from(Atom(index=None, element=None, valence=None, capped=False, coordinates=(1. ,2. ,3.)), 1.2))

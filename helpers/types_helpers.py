@@ -1,4 +1,4 @@
-from typing import Dict, Any, NamedTuple, Optional
+from typing import Dict, Any, NamedTuple, Optional, Tuple
 from os.path import dirname, abspath
 
 Fragment = str
@@ -12,6 +12,7 @@ Atom = NamedTuple(
         ('element', str),
         ('valence', Optional[int]),
         ('capped', bool),
+        ('coordinates', Optional[Tuple[float, float, float]],)
     ],
 )
 

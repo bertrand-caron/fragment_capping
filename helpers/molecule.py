@@ -8,7 +8,7 @@ from os.path import join
 from hashlib import md5
 
 from fragment_capping.helpers.types_helpers import Fragment, ATB_Molid, Atom, FRAGMENT_CAPPING_DIR
-from fragment_capping.helpers.parameters import FULL_VALENCES, POSSIBLE_CHARGES, get_capping_options, new_atom_for_capping_strategy, BEST_DOUBLE_BONDS, Capping_Strategy, possible_bond_order_for_atom_pair
+from fragment_capping.helpers.parameters import FULL_VALENCES, POSSIBLE_CHARGES, get_capping_options, new_atom_for_capping_strategy, BEST_DOUBLE_BONDS, Capping_Strategy, possible_bond_order_for_atom_pair, min_valence, max_valence, coordinates_n_angstroms_away_from
 
 from dihedral_fragments.dihedral_fragment import element_valence_for_atom, on_asc_number_electron_then_asc_valence, NO_VALENCE
 
@@ -111,12 +111,13 @@ class Molecule:
 
             for (new_id, new_atom, new_valence) in zip(new_ids, new_atoms, new_valences):
                 capped_molecule.atoms[new_id] = Atom(
-                    new_id,
-                    new_atom,
-                    new_valence if self.use_neighbour_valences else NO_VALENCE,
-                    True,
+                    index=new_id,
+                    element=new_atom,
+                    valence=new_valence if self.use_neighbour_valences else NO_VALENCE,
+                    capped=True,
+                    coordinates=coordinates_n_angstroms_away_from(atom, 1.2),
                 )
-            capped_molecule.atoms[atom_id] = Atom(*atom[:-1], True)
+            capped_molecule.atoms[atom_id] = Atom(*atom[:-2], True, atom[-1])
 
         assert all([atom.capped for atom in capped_molecule.atoms.values()]), 'Some atoms were not capped: {0}'.format(
             [atom for atom in capped_molecule.atoms.values() if not atom.capped],
@@ -325,19 +326,24 @@ class Molecule:
         )
 
         for (atom_index, pdb_id) in sorted(pdb_ids.items(), key=itemgetter(1)):
-            print(PDB_TEMPLATE.format(
-                'HETATM',
-                pdb_id,
-                (self.atoms[atom_index].element.title() + str(atom_index))[:4],
-                'R',
-                '',
-                pdb_id,
+            atom = self.atoms[atom_index]
+            coordinates = atom.coordinates or (
                 1.3 * pdb_id,
                 0.1 * (-1 if pdb_id % 2 == 0 else +1),
                 0.1 * (pdb_id % 5),
+            )
+
+            print(PDB_TEMPLATE.format(
+                'HETATM',
+                pdb_id,
+                (atom.element.title() + str(atom_index))[:4],
+                'R',
+                '',
+                pdb_id,
+                *coordinates,
                 '',
                 '',
-                self.atoms[atom_index].element.title(),
+                atom.element.title(),
                 '',
             ), file=io)
 
