@@ -1,9 +1,10 @@
-from typing import NamedTuple, Any, List, Sequence, Tuple, Union, Dict
-from itertools import groupby, product
+from typing import NamedTuple, Any, List, Sequence, Tuple, Union, Dict, Set
+from itertools import groupby, product, combinations_with_replacement
 from functools import reduce
 from re import match, search
 
 from fragment_capping.helpers.iterables import concat
+from fragment_capping.helpers.types_helpers import Atom
 
 FULL_VALENCES = {
     'C': {4},
@@ -106,6 +107,32 @@ POSSIBLE_BOND_ORDER_FOR_PAIR = {
     for (element_1, element_2) in product(POSSIBLE_BOND_ORDERS.keys(), repeat=2)
 }
 
+def max_valence(atom: Atom) -> int:
+    return max(FULL_VALENCES[atom.element]) - min(POSSIBLE_CHARGES[atom.element])
+
+def min_valence(atom: Atom) -> int:
+    return (min(FULL_VALENCES[atom.element]) + max(POSSIBLE_CHARGES[atom.element])) // max(POSSIBLE_BOND_ORDERS[atom.element])
+
+def possible_sets_of_bond_orders_for_atom(atom: Atom) -> List[int]:
+    if atom.valence is None:
+        return POSSIBLE_BOND_ORDERS[atom.element]
+    else:
+        if POSSIBLE_CHARGES[atom.element] == {0}:
+            return reduce(
+                lambda acc, e: acc | e,
+                [
+                    set(bond_orders)
+                    for bond_orders in combinations_with_replacement(POSSIBLE_BOND_ORDERS[atom.element], r=atom.valence)
+                    if sum(bond_orders) in FULL_VALENCES[atom.element]
+                ],
+                set(),
+            )
+        else:
+            return POSSIBLE_BOND_ORDERS[atom.element]
+
+def possible_bond_order_for_atom_pair(atoms: Tuple[Atom, Atom]) -> List[int]:
+    return possible_sets_of_bond_orders_for_atom(atoms[0]) & possible_sets_of_bond_orders_for_atom(atoms[1])
+
 def new_atom_for_capping_strategy(capping_strategy: Capping_Strategy) -> int:
     return len([1 for (atom_id_1, atom_id_2) in capping_strategy.new_bonds if atom_id_1 == 0 or atom_id_2 == 0])
 
@@ -164,3 +191,18 @@ ENFORCE_ALL_DOUBLE_BOND_COMBINATIONS = False
 
 if ENFORCE_ALL_DOUBLE_BOND_COMBINATIONS:
     assert set(BEST_DOUBLE_BONDS) == ALL_POSSIBLE_DOUBLE_BONDS, ALL_POSSIBLE_DOUBLE_BONDS - set(BEST_DOUBLE_BONDS)
+
+if __name__ == '__main__':
+    print(
+        sorted(
+            [
+                (
+                    element + str(valence),
+                    possible_sets_of_bond_orders_for_atom(
+                        Atom(index=None, element=element, valence=valence, capped=True),
+                    ),
+                )
+                for (element, valence) in map(lambda x: (x[:-1], int(x[-1])), INDIVIDUAL_CAPPING_OPTIONS.keys())
+            ],
+        ),
+    )
