@@ -17,7 +17,7 @@ from fragment_capping.helpers.capping import best_capped_molecule_for_dihedral_f
 from fragment_capping.helpers.babel import energy_minimised_pdb
 
 from API_client.api import API, HTTPError
-from dihedral_fragments.dihedral_fragment import element_valence_for_atom, on_asc_number_electron_then_asc_valence, NO_VALENCE
+from dihedral_fragments.dihedral_fragment import element_valence_for_atom, on_asc_atomic_number_then_asc_valence, NO_VALENCE
 
 from cairosvg import svg2png # pylint: disable=no-name-in-module
 

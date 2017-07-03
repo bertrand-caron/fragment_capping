@@ -10,7 +10,7 @@ from hashlib import md5
 from fragment_capping.helpers.types_helpers import Fragment, ATB_Molid, Atom, FRAGMENT_CAPPING_DIR
 from fragment_capping.helpers.parameters import FULL_VALENCES, POSSIBLE_CHARGES, get_capping_options, new_atom_for_capping_strategy, BEST_DOUBLE_BONDS, Capping_Strategy, possible_bond_order_for_atom_pair, min_valence, max_valence, coordinates_n_angstroms_away_from
 
-from dihedral_fragments.dihedral_fragment import element_valence_for_atom, on_asc_number_electron_then_asc_valence, NO_VALENCE
+from dihedral_fragments.dihedral_fragment import element_valence_for_atom, on_asc_atomic_number_then_asc_valence, NO_VALENCE
 
 DRAW_ALL_POSSIBLE_GRAPHS = False
 
