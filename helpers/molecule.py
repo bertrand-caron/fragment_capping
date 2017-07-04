@@ -8,7 +8,7 @@ from os.path import join
 from hashlib import md5
 
 from fragment_capping.helpers.types_helpers import Fragment, ATB_Molid, Atom, FRAGMENT_CAPPING_DIR
-from fragment_capping.helpers.parameters import FULL_VALENCES, POSSIBLE_CHARGES, get_capping_options, new_atom_for_capping_strategy, BEST_DOUBLE_BONDS, Capping_Strategy, possible_bond_order_for_atom_pair, min_valence, max_valence, coordinates_n_angstroms_away_from
+from fragment_capping.helpers.parameters import FULL_VALENCES, POSSIBLE_CHARGES, get_capping_options, new_atom_for_capping_strategy, BEST_DOUBLE_BONDS, Capping_Strategy, possible_bond_order_for_atom_pair, min_valence, max_valence, coordinates_n_angstroms_away_from, possible_charge_for_atom
 
 from dihedral_fragments.dihedral_fragment import element_valence_for_atom, on_asc_atomic_number_then_asc_valence, NO_VALENCE
 
@@ -27,6 +27,9 @@ def product_len(list_of_lists: List[List[Any]]) -> int:
     return _product_len
 
 class Too_Many_Permutations(Exception):
+    pass
+
+class Not_Capped_Error(Exception):
     pass
 
 class Molecule:
@@ -255,10 +258,13 @@ class Molecule:
                 )
                 raise
 
+        if len(possible_capped_molecules) == 0:
+            raise Not_Capped_Error(self)
+
         best_molecule = possible_capped_molecules[0]
         return best_molecule
 
-    def write_graph(self, unique_id: Union[str, int]) -> str:
+    def write_graph(self, unique_id: Union[str, int], **kwargs: Dict[str, Any]) -> str:
         graph_filepath = join(FRAGMENT_CAPPING_DIR, 'graphs' ,'_'.join((self.name, str(unique_id))) + '.png')
         try:
             from py_graphs.pdb import graph_from_pdb
@@ -268,6 +274,7 @@ class Molecule:
                 graph,
                 fnme=graph_filepath,
                 force_regen=True,
+                **kwargs,
             )
         except Exception as e:
             print(
@@ -421,7 +428,7 @@ class Molecule:
         )
 
         list_of_possible_charges_per_atom = [
-            POSSIBLE_CHARGES[atom.element]
+            possible_charge_for_atom(atom)
             for atom in self.sorted_atoms()
         ]
 
@@ -437,8 +444,11 @@ class Molecule:
 
         len_possible_bond_orders_and_charges = number_bond_order_permutations * number_charges_permutations
 
+        if len_possible_bond_orders_and_charges > 500000:
+            raise Too_Many_Permutations([number_bond_order_permutations, number_charges_permutations, len_possible_bond_orders_and_charges, list_of_possible_bond_orders_per_bond, list_of_possible_charges_per_atom])
+
         if debug:
-            print('INFO: Found {0} posible charge and bond order assignments'.format(len_possible_bond_orders_and_charges))
+            print('INFO: Found {0} possible charge and bond order assignments'.format(len_possible_bond_orders_and_charges))
 
         possible_bond_orders_and_charges = product(possible_bond_orders_lists, possible_charges_dicts)
 

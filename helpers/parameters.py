@@ -136,6 +136,15 @@ def possible_sets_of_bond_orders_for_atom(atom: Atom) -> List[int]:
 def possible_bond_order_for_atom_pair(atoms: Tuple[Atom, Atom]) -> List[int]:
     return possible_sets_of_bond_orders_for_atom(atoms[0]) & possible_sets_of_bond_orders_for_atom(atoms[1])
 
+def possible_charge_for_atom(atom: Atom) -> Set[int]:
+    if atom.valence is None:
+        return POSSIBLE_CHARGES[atom.element]
+    else:
+        if len(FULL_VALENCES[atom.element]) == 1 and atom.valence in FULL_VALENCES[atom.element]:
+            return {0}
+        else:
+            return POSSIBLE_CHARGES[atom.element]
+
 def new_atom_for_capping_strategy(capping_strategy: Capping_Strategy) -> int:
     return len([1 for (atom_id_1, atom_id_2) in capping_strategy.new_bonds if atom_id_1 == 0 or atom_id_2 == 0])
 
