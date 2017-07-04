@@ -394,17 +394,24 @@ class Molecule:
         vertex_types = g.new_vertex_property("string")
         g.vertex_properties['type'] = vertex_types
 
+        edge_types = g.new_edge_property("string")
+        g.edge_properties['type'] = edge_types
+
         vertices = {}
         for atom_index in sorted(self.atoms.keys()):
             v = g.add_vertex()
-            vertex_types[v] = '{element}{valence}'.format(
+            possible_charges = possible_charge_for_atom(self.atoms[atom_index])
+            vertex_types[v] = '{element}{valence} {charges}'.format(
                 element=self.atoms[atom_index].element,
                 valence=self.atoms[atom_index].valence if self.use_neighbour_valences else '',
+                charges=str(possible_charges)[1:-1] if len(possible_charges) > 1 else '',
             )
             vertices[atom_index] = v
 
         for (i, j) in self.bonds:
-            g.add_edge(vertices[i], vertices[j])
+            e = g.add_edge(vertices[i], vertices[j])
+            possible_bond_orders = possible_bond_order_for_atom_pair((self.atoms[i], self.atoms[j]))
+            edge_types[e] = str(possible_bond_orders)[1:-1] if len(possible_bond_orders) > 1 else ''
 
         return g
 
