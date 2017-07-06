@@ -44,6 +44,8 @@ class Molecule:
             else False
         )
 
+        self.bond_orders, self.charges = None, None
+
     def atom_desc(self, atom: Atom):
         if self.use_neighbour_valences:
             return atom.element + str(atom.valence)
@@ -400,18 +402,28 @@ class Molecule:
         vertices = {}
         for atom_index in sorted(self.atoms.keys()):
             v = g.add_vertex()
-            possible_charges = possible_charge_for_atom(self.atoms[atom_index])
-            vertex_types[v] = '{element}{valence} {charges}'.format(
+            if self.charges is None:
+                possible_charges = possible_charge_for_atom(self.atoms[atom_index])
+                charge_str = str(possible_charges)[1:-1] if len(possible_charges) > 1 else ''
+            else:
+                charge = self.charges[atom_index]
+                charge_str = (str(charge) + ('-' if charge < 0 else '+')) if charge != 0 else ''
+            vertex_types[v] = '{element}{valence} {charge_str}'.format(
                 element=self.atoms[atom_index].element,
                 valence=self.atoms[atom_index].valence if self.use_neighbour_valences else '',
-                charges=str(possible_charges)[1:-1] if len(possible_charges) > 1 else '',
+                charge_str=charge_str,
             )
             vertices[atom_index] = v
 
-        for (i, j) in self.bonds:
+        for bond in self.bonds:
+            (i, j) = bond
             e = g.add_edge(vertices[i], vertices[j])
-            possible_bond_orders = possible_bond_order_for_atom_pair((self.atoms[i], self.atoms[j]))
-            edge_types[e] = str(possible_bond_orders)[1:-1] if len(possible_bond_orders) > 1 else ''
+            if self.bond_orders is None:
+                possible_bond_orders = possible_bond_order_for_atom_pair((self.atoms[i], self.atoms[j]))
+                edge_text = str(possible_bond_orders)[1:-1] if len(possible_bond_orders) > 1 else ''
+            else:
+                edge_text = str(self.bond_orders[bond])
+            edge_types[e] = edge_text
 
         return g
 
@@ -477,7 +489,12 @@ class Molecule:
 
         assert len(acceptable_bond_orders_and_charges) >= 1, 'No valid bond_orders and charges found amongst {0} tried.'.format(len_possible_bond_orders_and_charges)
 
-        self.bond_orders, self.charges = acceptable_bond_orders_and_charges[0]
+        best_bond_orders, self.charges = acceptable_bond_orders_and_charges[0]
+
+        self.bond_orders = {
+            bond: bond_order
+            for (bond, bond_order) in best_bond_orders
+        }
 
     def netcharge(self) -> int:
         try:
@@ -559,7 +576,7 @@ class Molecule:
                 sorted(
                     [
                         frozenset([self.atoms[atom_id].element for atom_id in bond])
-                        for (bond, bond_order) in self.bond_orders
+                        for (bond, bond_order) in self.bond_orders.items()
                         if bond_order == 2
                     ]
                 ),
