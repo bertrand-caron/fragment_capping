@@ -8,9 +8,7 @@ from os.path import join
 from hashlib import md5
 
 from fragment_capping.helpers.types_helpers import Fragment, ATB_Molid, Atom, FRAGMENT_CAPPING_DIR
-from fragment_capping.helpers.parameters import FULL_VALENCES, POSSIBLE_CHARGES, get_capping_options, new_atom_for_capping_strategy, BEST_DOUBLE_BONDS, Capping_Strategy, possible_bond_order_for_atom_pair, min_valence, max_valence, coordinates_n_angstroms_away_from, possible_charge_for_atom
-
-from dihedral_fragments.dihedral_fragment import element_valence_for_atom, on_asc_atomic_number_then_asc_valence, NO_VALENCE
+from fragment_capping.helpers.parameters import FULL_VALENCES, POSSIBLE_CHARGES, get_capping_options, new_atom_for_capping_strategy, BEST_DOUBLE_BONDS, Capping_Strategy, possible_bond_order_for_atom_pair, min_valence, max_valence, coordinates_n_angstroms_away_from, possible_charge_for_atom, ALL_ELEMENTS
 
 DRAW_ALL_POSSIBLE_GRAPHS = False
 
@@ -34,13 +32,14 @@ class Not_Capped_Error(Exception):
 
 class Molecule:
     def __init__(self, atoms: Dict[int, Atom], bonds: List[Tuple[int, int]], name: Optional[str] = None) -> None:
-        self.atoms = atoms
+        self.atoms = validated_atoms_dict(atoms)
         self.bonds = set(map(frozenset, bonds))
+        validate_bond_dict(self.atoms, self.bonds)
         self.name = name if name is not None else md5((str(sorted(atoms.values())) + str(sorted(bonds))).encode()).hexdigest()
 
         self.use_neighbour_valences = (
             True
-            if all([atom.valence is not NO_VALENCE for atom in self.atoms.values()])
+            if all([atom.valence is not None for atom in self.atoms.values()])
             else False
         )
 
@@ -609,3 +608,27 @@ class Molecule:
         }
 
 Uncapped_Molecule = Molecule
+
+def validated_atoms_dict(atoms: Dict[int, Atom]) -> Dict[int, Atom]:
+    assert {atom.element for atom in atoms.values()} <= ALL_ELEMENTS, 'Unsupported elements: {0}'.format({atom.element for atom in atoms.values()} - ALL_ELEMENTS)
+
+    for (atom_index, atom) in atoms.items():
+        assert atom_index == atom.index, 'Invalid index={0} for atom={1}'.format(atom_index, atom)
+
+    return atoms
+
+def validate_bond_dict(atoms: Dict[int, Atom], bonds: Set[FrozenSet[int]]) -> None:
+    all_bond_indices = reduce(
+        lambda acc, e: acc | e,
+        bonds,
+        set(),
+    )
+
+    all_atom_indices = set(atoms.keys())
+
+    if all_atom_indices- all_bond_indices != set():
+        raise AssertionError('The atoms with the following indices have no bonds: {0}'.format(all_atom_indices - all_bond_indices))
+
+    if all_bond_indices - all_atom_indices != set():
+        raise AssertionError('The following atoms indices in the bonds reference non-existing atoms: {0}'.format(all_bond_indices - all_atom_indices))
+

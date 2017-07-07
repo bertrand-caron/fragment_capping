@@ -53,7 +53,7 @@ POSSIBLE_CHARGES = {
 
 assert set(FULL_VALENCES.keys()) == set(POSSIBLE_BOND_ORDERS.keys()) == set(POSSIBLE_CHARGES.keys())
 
-ALL_ELEMENTS = list(FULL_VALENCES.keys())
+ALL_ELEMENTS = set(FULL_VALENCES.keys())
 
 Capping_Strategy = NamedTuple(
     'Capping_Strategy',
