@@ -1,4 +1,4 @@
-from typing import Any, Optional, List, Tuple, Dict, Union, Set, FrozenSet, Sequence
+from typing import Any, Optional, List, Tuple, Dict, Union, Set, FrozenSet, Sequence, TextIO
 from copy import deepcopy
 from operator import itemgetter
 from itertools import groupby, product
@@ -6,15 +6,12 @@ from io import StringIO
 from functools import reduce, lru_cache
 from os.path import join
 from hashlib import md5
+from sys import stderr
 
 from fragment_capping.helpers.types_helpers import Fragment, ATB_Molid, Atom, FRAGMENT_CAPPING_DIR
 from fragment_capping.helpers.parameters import FULL_VALENCES, POSSIBLE_CHARGES, get_capping_options, new_atom_for_capping_strategy, BEST_DOUBLE_BONDS, Capping_Strategy, possible_bond_order_for_atom_pair, min_valence, max_valence, coordinates_n_angstroms_away_from, possible_charge_for_atom, ALL_ELEMENTS
 
 DRAW_ALL_POSSIBLE_GRAPHS = False
-
-DEBUG = False
-
-DEBUG_MOLECULE = lambda molecule: (molecule.formula() == 'C6H12')
 
 MAXIMUM_PERMUTATION_NUMBER = 200000
 
@@ -29,6 +26,10 @@ class Too_Many_Permutations(Exception):
 
 class Not_Capped_Error(Exception):
     pass
+
+def write_to_debug(debug: Optional[TextIO], *objects: List[Any]) -> None:
+     if debug is not None:
+        debug.write(' '.join(map(str, objects)) + '\n')
 
 class Molecule:
     def __init__(self, atoms: Dict[int, Atom], bonds: List[Tuple[int, int]], name: Optional[str] = None) -> None:
@@ -83,7 +84,7 @@ class Molecule:
     def add_bonds(self, bonds: Sequence[FrozenSet[int]]) -> None:
         self.bonds |= set(bonds)
 
-    def capped_molecule_with(self, capping_strategies: List[Any], atoms_need_capping: Any, debug: bool = DEBUG, debug_line: Optional[Any] = None) -> Any:
+    def capped_molecule_with(self, capping_strategies: List[Any], atoms_need_capping: Any, debug: Optional[TextIO] = None, debug_line: Optional[Any] = None) -> Any:
         capped_molecule = deepcopy(self)
 
         for (atom, capping_strategy) in zip(atoms_need_capping, capping_strategies):
@@ -131,16 +132,17 @@ class Molecule:
             capped_molecule.check_valence()
 
         try:
-            if debug_line is not None:
-                print(debug_line)
+            write_to_debug(debug, debug_line)
             capped_molecule.assign_bond_orders_and_charges(debug=debug)
             return capped_molecule
         except AssertionError as e:
-            if DEBUG and DEBUG_MOLECULE(capped_molecule):
-                print('AssertionError for capped molecule {0}:\n{1}'.format(
+            write_to_debug(
+                debug,
+                'AssertionError for capped molecule {0}:\n{1}'.format(
                     capped_molecule,
                     str(e),
-                ))
+                ),
+            )
             return None
 
     def check_valence(self) -> None:
@@ -157,12 +159,12 @@ class Molecule:
                     [bond for bond in self.bonds if atom_id in bond],
                 )
         except AssertionError:
-            print('ERROR')
-            print('Atoms are: {0}'.format(self.atoms))
-            print('Bonds are: {0}'.format(self.bonds))
+            write_to_debug(debug, 'ERROR')
+            write_to_debug(debug, 'Atoms are: {0}'.format(self.atoms))
+            write_to_debug(debug, 'Bonds are: {0}'.format(self.bonds))
             raise
 
-    def get_best_capped_molecule(self, draw_all_possible_graphs: bool = DRAW_ALL_POSSIBLE_GRAPHS, debug: bool = DEBUG):
+    def get_best_capped_molecule(self, draw_all_possible_graphs: bool = DRAW_ALL_POSSIBLE_GRAPHS, debug: Optional[Optional] = None):
         capping_options = get_capping_options(self.use_neighbour_valences)
 
         neighbour_counts = self.neighbours_for_atoms()
@@ -174,10 +176,11 @@ class Molecule:
                 return min_valence(atom) <= neighbour_counts[atom.index] + new_atom_for_capping_strategy(capping_strategy) <= max_valence(atom)
 
         def possible_capping_strategies_for_atom(atom: Atom) -> List[Capping_Strategy]:
-            if debug:
-                print(atom)
+            if debug is not None:
+                write_to_debug(debug, atom)
                 for capping_strategy in capping_options[self.atom_desc(atom)]:
-                    print(
+                    write_to_debug(
+                        debug, 
                         capping_strategy,
                         new_atom_for_capping_strategy(capping_strategy),
                         keep_capping_strategy_for_atom(capping_strategy, atom)
@@ -207,28 +210,26 @@ class Molecule:
             if len(possible_capping_strategies_for_atom(atom)) == 0
         ]
 
-        if debug:
-            print(
-                [
-                    possible_capping_strategies_for_atom(atom)
-                    for atom in atoms_need_capping
-                ],
-            )
+        write_to_debug(
+            debug,
+            [
+                possible_capping_strategies_for_atom(atom)
+                for atom in atoms_need_capping
+            ],
+        )
 
         if len(capping_schemes) >= MAXIMUM_PERMUTATION_NUMBER:
             raise Too_Many_Permutations(len(capping_schemes))
 
-        if debug:
-            print('atoms_need_capping: {0}'.format(atoms_need_capping))
-            print('capping_schemes: {0}'.format(capping_schemes))
-            print('capping_options: {0}'.format([
-                len(capping_options[self.atom_desc(atom)])
-                for atom in atoms_need_capping
-            ]))
+        write_to_debug(debug, 'atoms_need_capping: {0}'.format(atoms_need_capping))
+        write_to_debug(debug, 'capping_schemes: {0}'.format(capping_schemes))
+        write_to_debug(debug, 'capping_options: {0}'.format([
+            len(capping_options[self.atom_desc(atom)])
+            for atom in atoms_need_capping
+        ]))
 
-        if DEBUG:
-            print('atoms_need_capping: {0}'.format(atoms_need_capping))
-            print('INFO: Will try all {0} possible capped molecules'.format(len(capping_schemes)))
+        write_to_debug(debug, 'atoms_need_capping: {0}'.format(atoms_need_capping))
+        write_to_debug(debug, 'INFO: Will try all {0} possible capped molecules'.format(len(capping_schemes)))
 
         possible_capped_molecules = sorted(
             filter(
@@ -241,7 +242,7 @@ class Molecule:
             key=lambda mol: (mol.net_abs_charges(), mol.n_atoms(), mol.double_bonds_fitness()),
         )
 
-        print('Possible capped molecules: {0} ({1}/{2})'.format(
+        write_to_debug(debug, 'Possible capped molecules: {0} ({1}/{2})'.format(
             [(mol.formula(charge=True), mol.net_abs_charges(), mol.double_bonds_fitness()) for mol in possible_capped_molecules],
             len(possible_capped_molecules),
             len(capping_schemes),
@@ -432,7 +433,7 @@ class Molecule:
     def sorted_atom_ids(self) -> List[int]:
         return [atom_id for (atom_id, atom) in sorted(self.atoms.items())]
 
-    def assign_bond_orders_and_charges(self, debug: bool = DEBUG) -> None:
+    def assign_bond_orders_and_charges(self, debug: Optional[TextIO] = None) -> None:
         list_of_possible_bond_orders_per_bond = [
             possible_bond_order_for_atom_pair((self.atoms[atom_id_1], self.atoms[atom_id_2]))
             for (atom_id_1, atom_id_2) in self.bonds
@@ -465,8 +466,7 @@ class Molecule:
         if len_possible_bond_orders_and_charges > 500000:
             raise Too_Many_Permutations([number_bond_order_permutations, number_charges_permutations, len_possible_bond_orders_and_charges, list_of_possible_bond_orders_per_bond, list_of_possible_charges_per_atom])
 
-        if debug:
-            print('INFO: Found {0} possible charge and bond order assignments'.format(len_possible_bond_orders_and_charges))
+        write_to_debug(debug, 'INFO: Found {0} possible charge and bond order assignments'.format(len_possible_bond_orders_and_charges))
 
         possible_bond_orders_and_charges = product(possible_bond_orders_lists, possible_charges_dicts)
 
@@ -477,14 +477,13 @@ class Molecule:
                     charges,
                 )
                 for (i, (bond_orders, charges)) in enumerate(possible_bond_orders_and_charges)
-                if self.is_valid(bond_orders, charges, debug=False, debug_line='{0}/{1}'.format(i, len_possible_bond_orders_and_charges))
+                if self.is_valid(bond_orders, charges, debug=debug, debug_line='{0}/{1}'.format(i, len_possible_bond_orders_and_charges))
             ],
             key=lambda __charges: sum(map(abs, list(__charges[1].values()))),
         )
 
-        if DEBUG and DEBUG_MOLECULE(self):
-            if len(acceptable_bond_orders_and_charges) != 1:
-                print('acceptable_bond_orders_and_charges: {0}'.format(acceptable_bond_orders_and_charges))
+        if len(acceptable_bond_orders_and_charges) != 1:
+            write_to_debug(debug, 'acceptable_bond_orders_and_charges: {0}'.format(acceptable_bond_orders_and_charges))
 
         assert len(acceptable_bond_orders_and_charges) >= 1, 'No valid bond_orders and charges found amongst {0} tried.'.format(len_possible_bond_orders_and_charges)
 
@@ -507,7 +506,7 @@ class Molecule:
         except:
             raise Exception('Assign charges and bond_orders first.')
 
-    def is_valid(self, bond_orders: List[int], charges: Dict[int, int], debug: bool = True, debug_line: Optional[Any] = None) -> bool:
+    def is_valid(self, bond_orders: List[int], charges: Dict[int, int], debug: Optional[TextIO] = None, debug_line: Optional[Any] = None) -> bool:
         assert len(self.bonds) == len(bond_orders), 'Unmatched bonds and bond_orders: {0} != {1}'.format(
             len(self.bonds),
             len(bond_orders),
@@ -516,11 +515,12 @@ class Molecule:
         on_atom_id = lambda atom_id_bond_order: atom_id_bond_order[0]
         on_bond_order = lambda atom_id_bond_order1: atom_id_bond_order1[1]
 
-        if DEBUG and DEBUG_MOLECULE(self):
-            print(
+        if debug is not None:
+            write_to_debug(
+                debug,
                 'is_valid',
                 [
-                    (atom_id, sum(map(on_bond_order, group)), FULL_VALENCES[self.atoms[atom_id].element] + charges[atom_id])
+                    (atom_id, sum(map(on_bond_order, group)), charges[atom_id], FULL_VALENCES[self.atoms[atom_id].element])
                     for (atom_id, group) in
                     groupby(
                         sorted(
@@ -560,8 +560,7 @@ class Molecule:
             )
         )
 
-        if debug_line is not None and debug:
-            print(debug_line)
+        write_to_debug(debug, debug_line)
 
         return valid
 
@@ -631,4 +630,3 @@ def validate_bond_dict(atoms: Dict[int, Atom], bonds: Set[FrozenSet[int]]) -> No
 
     if all_bond_indices - all_atom_indices != set():
         raise AssertionError('The following atoms indices in the bonds reference non-existing atoms: {0}'.format(all_bond_indices - all_atom_indices))
-

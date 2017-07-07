@@ -1,3 +1,5 @@
+from sys import stderr
+
 from fragment_capping.helpers.types_helpers import Atom
 from fragment_capping.helpers.molecule import Molecule
 
@@ -9,12 +11,12 @@ def example_1() -> None:
         },
         [
             (1, 2),
-        ]
+        ],
     )
 
     uncapped_molecule.write_graph('uncapped_molecule')
 
-    capped_molecule = uncapped_molecule.get_best_capped_molecule()
+    capped_molecule = uncapped_molecule.get_best_capped_molecule(debug=None)
 
     capped_molecule.write_graph('capped_molecule')
 
