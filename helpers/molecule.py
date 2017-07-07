@@ -269,8 +269,8 @@ class Molecule:
     def write_graph(self, unique_id: Union[str, int], **kwargs: Dict[str, Any]) -> str:
         graph_filepath = join(FRAGMENT_CAPPING_DIR, 'graphs' ,'_'.join((self.name, str(unique_id))) + '.png')
         try:
-            from py_graphs.pdb import graph_from_pdb
-            from py_graphs.moieties import draw_graph
+            from chem_graph_tool.pdb import graph_from_pdb
+            from chem_graph_tool.moieties import draw_graph
             graph = self.graph()
             draw_graph(
                 graph,
