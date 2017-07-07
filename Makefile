@@ -8,7 +8,7 @@ cache/protein_fragments.pickle:
 	scp scmb-atb.biosci.uq.edu.au:/home/uqbcaron/ATB/ivan_dihedrals/protein_fragments.pickle $@
 
 mypy: $(PYTHON_BIN_DIR)/mypy
-	MYPYPATH=$(PYTHONPATH) $(PYTHON_BIN_DIR)/mypy *.py helpers/*.py
+	MYPYPATH=$(PYTHONPATH) $(PYTHON_BIN_DIR)/mypy *.py helpers/*.py --ignore-missing-imports
 .PHONY: mypy
 
 errors:

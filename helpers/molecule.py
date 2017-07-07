@@ -27,7 +27,7 @@ class Too_Many_Permutations(Exception):
 class Not_Capped_Error(Exception):
     pass
 
-def write_to_debug(debug: Optional[TextIO], *objects: List[Any]) -> None:
+def write_to_debug(debug: Optional[TextIO], *objects: Sequence[Any]) -> None:
      if debug is not None:
         debug.write(' '.join(map(str, objects)) + '\n')
 
@@ -81,7 +81,7 @@ class Molecule:
     def add_bond(self, bond: FrozenSet[int]) -> None:
         self.bonds |= set([bond])
 
-    def add_bonds(self, bonds: Sequence[FrozenSet[int]]) -> None:
+    def add_bonds(self, bonds: Set[FrozenSet[int]]) -> None:
         self.bonds |= set(bonds)
 
     def capped_molecule_with(self, capping_strategies: List[Any], atoms_need_capping: Any, debug: Optional[TextIO] = None, debug_line: Optional[Any] = None) -> Any:
@@ -122,7 +122,7 @@ class Molecule:
                     capped=True,
                     coordinates=coordinates_n_angstroms_away_from(atom, 1.2),
                 )
-            capped_molecule.atoms[atom_id] = Atom(*atom[:-2], True, atom[-1])
+            capped_molecule.atoms[atom_id] = atom._replace(capped=True)
 
         assert all([atom.capped for atom in capped_molecule.atoms.values()]), 'Some atoms were not capped: {0}'.format(
             [atom for atom in capped_molecule.atoms.values() if not atom.capped],
@@ -164,7 +164,7 @@ class Molecule:
             print('Bonds were: {0}'.format(self.bonds))
             raise
 
-    def get_best_capped_molecule(self, draw_all_possible_graphs: bool = DRAW_ALL_POSSIBLE_GRAPHS, debug: Optional[Optional] = None):
+    def get_best_capped_molecule(self, draw_all_possible_graphs: bool = DRAW_ALL_POSSIBLE_GRAPHS, debug: Optional[TextIO] = None):
         capping_options = get_capping_options(self.use_neighbour_valences)
 
         neighbour_counts = self.neighbours_for_atoms()
