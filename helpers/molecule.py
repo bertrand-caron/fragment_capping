@@ -78,11 +78,11 @@ class Molecule:
 
         return atom_id
 
-    def add_bond(self, bond: FrozenSet[int]) -> None:
-        self.bonds |= set([bond])
+    def add_bond(self, bond: Tuple[int, int]) -> None:
+        self.bonds.add(frozenset(bond))
 
-    def add_bonds(self, bonds: Set[FrozenSet[int]]) -> None:
-        self.bonds |= set(bonds)
+    def add_bonds(self, bonds: List[Tuple[int, int]]) -> None:
+        self.bonds |= set(map(frozenset, bonds))
 
     def capped_molecule_with(self, capping_strategies: List[Any], atoms_need_capping: Any, debug: Optional[TextIO] = None, debug_line: Optional[Any] = None) -> Any:
         capped_molecule = deepcopy(self)
