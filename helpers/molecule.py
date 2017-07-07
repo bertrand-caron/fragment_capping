@@ -319,7 +319,7 @@ class Molecule:
         return len(self.atoms)
 
     def dummy_pdb(self) -> str:
-        from atb_helpers.pdb import PDB_TEMPLATE, pdb_conect_line
+        from chemistry_helpers.pdb import PDB_TEMPLATE, pdb_conect_line
         io = StringIO()
 
         ordered_atoms = sorted(
@@ -371,7 +371,7 @@ class Molecule:
     def representation(self, out_format: str) -> str:
         assert out_format in ('smiles', 'inchi'), 'Wrong representation format: {0}'.format(out_format)
 
-        from atb_helpers.babel import babel_output
+        from chemistry_helpers.babel import babel_output
         return babel_output(
             self.dummy_pdb(),
             in_format='pdb',
