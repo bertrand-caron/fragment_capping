@@ -118,7 +118,7 @@ class Molecule:
                 capped_molecule.atoms[new_id] = Atom(
                     index=new_id,
                     element=new_atom,
-                    valence=new_valence if self.use_neighbour_valences else NO_VALENCE,
+                    valence=new_valence if self.use_neighbour_valences else None,
                     capped=True,
                     coordinates=coordinates_n_angstroms_away_from(atom, 1.2),
                 )
@@ -159,9 +159,9 @@ class Molecule:
                     [bond for bond in self.bonds if atom_id in bond],
                 )
         except AssertionError:
-            write_to_debug(debug, 'ERROR')
-            write_to_debug(debug, 'Atoms are: {0}'.format(self.atoms))
-            write_to_debug(debug, 'Bonds are: {0}'.format(self.bonds))
+            print('ERROR')
+            print('Atoms were: {0}'.format(self.atoms))
+            print('Bonds were: {0}'.format(self.bonds))
             raise
 
     def get_best_capped_molecule(self, draw_all_possible_graphs: bool = DRAW_ALL_POSSIBLE_GRAPHS, debug: Optional[Optional] = None):
