@@ -9,11 +9,13 @@ from hashlib import md5
 from sys import stderr
 
 from fragment_capping.helpers.types_helpers import Fragment, ATB_Molid, Atom, FRAGMENT_CAPPING_DIR
-from fragment_capping.helpers.parameters import FULL_VALENCES, POSSIBLE_CHARGES, get_capping_options, new_atom_for_capping_strategy, BEST_DOUBLE_BONDS, Capping_Strategy, possible_bond_order_for_atom_pair, min_valence, max_valence, coordinates_n_angstroms_away_from, possible_charge_for_atom, ALL_ELEMENTS
+from fragment_capping.helpers.parameters import FULL_VALENCES, POSSIBLE_CHARGES, get_capping_options, new_atom_for_capping_strategy, Capping_Strategy, possible_bond_order_for_atom_pair, min_valence, max_valence, coordinates_n_angstroms_away_from, possible_charge_for_atom, ALL_ELEMENTS, electronegativity_spread
 
 DRAW_ALL_POSSIBLE_GRAPHS = False
 
 MAXIMUM_PERMUTATION_NUMBER = 200000
+
+DESC = lambda x: -x
 
 def product_len(list_of_lists: List[List[Any]]) -> int:
     _product_len = reduce(lambda acc, e: acc * len(e), list_of_lists, 1)
@@ -477,7 +479,7 @@ class Molecule:
                     charges,
                 )
                 for (i, (bond_orders, charges)) in enumerate(possible_bond_orders_and_charges)
-                if self.is_valid(bond_orders, charges, debug=debug, debug_line='{0}/{1}'.format(i, len_possible_bond_orders_and_charges))
+                if self.is_valid(bond_orders, charges, debug=None, debug_line='{0}/{1}'.format(i, len_possible_bond_orders_and_charges))
             ],
             key=lambda __charges: sum(map(abs, list(__charges[1].values()))),
         )
@@ -581,13 +583,13 @@ class Molecule:
             )
         ])
 
-        assert set(grouped_double_bonds.keys()) <= set(BEST_DOUBLE_BONDS), 'Unexpected double bonds: {0}'.format(set(grouped_double_bonds.keys()) - set(BEST_DOUBLE_BONDS))
-
-        return tuple(
-            [
-                (- grouped_double_bonds[double_bond_type] if double_bond_type in grouped_double_bonds else 0)
-                for double_bond_type in BEST_DOUBLE_BONDS
-            ]
+        return DESC(
+            sum(
+                [
+                    electronegativity_spread(double_bond_elements)
+                    for double_bond_elements in grouped_double_bonds
+                ]
+            )
         )
 
     def neighbours_for_atoms(self) -> Dict[int, int]:

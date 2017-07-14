@@ -11,7 +11,7 @@ from fragment_capping.helpers.types_helpers import Atom
 
 FULL_VALENCES = {
     'C': {4},
-    'N': {3},
+    'N': {3, 5},
     'O': {2},
     'H': {1},
     'S': {2, 4, 6},
@@ -190,16 +190,32 @@ ALL_POSSIBLE_DOUBLE_BONDS = {
     for (element_1, element_2) in product(DOUBLE_BOND_ELEMENTS, DOUBLE_BOND_ELEMENTS)
 }
 
-BEST_DOUBLE_BONDS = (
-    # From best, to worst
-    frozenset(['C', 'O']),
-    frozenset(['C', 'N']),
-    frozenset(['C', 'C']),
-    frozenset(['P', 'O']),
-    frozenset(['P', 'C']),
-)
+ELECTRONEGATIVITIES = {
+    # Source: https://en.wikipedia.org/wiki/Electronegativity
+    'C': 2.55,
+    'N': 3.04,
+    'O': 3.44,
+    'H': 2.20,
+    'S': 2.58,
+    'P': 2.19,
+    'CL': 3.16,
+    'BR': 2.96,
+    'F': 3.98,
+    'I': 2.66,
+    'B': 2.04,
+}
 
-ENFORCE_ALL_DOUBLE_BOND_COMBINATIONS = False
+assert set(ELECTRONEGATIVITIES.keys()) >= ALL_ELEMENTS, ALL_ELEMENTS - set(ELECTRONEGATIVITIES.keys())
+
+def electronegativity_spread(elements: Tuple[str, str]) -> float:
+    assert len(elements) > 0, elements
+
+    electronegativites = list(map(
+        lambda element: ELECTRONEGATIVITIES[element],
+        elements,
+    ))
+
+    return max(electronegativites) - min(electronegativites)
 
 def coordinates_n_angstroms_away_from(atom: Atom, n: float) -> Optional[Tuple[float, float, float]]:
     if atom.coordinates is None:
@@ -207,9 +223,6 @@ def coordinates_n_angstroms_away_from(atom: Atom, n: float) -> Optional[Tuple[fl
     else:
         random_vector = uniform(-1, 1, 3)
         return tuple((vector(atom.coordinates) + random_vector / norm(random_vector) * n).tolist())
-
-if ENFORCE_ALL_DOUBLE_BOND_COMBINATIONS:
-    assert set(BEST_DOUBLE_BONDS) == ALL_POSSIBLE_DOUBLE_BONDS, ALL_POSSIBLE_DOUBLE_BONDS - set(BEST_DOUBLE_BONDS)
 
 if __name__ == '__main__':
     print(
