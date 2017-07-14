@@ -21,6 +21,7 @@ FULL_VALENCES = {
     'F': {1},
     'I': {1},
     'B': {3},
+    'SI': {4},
 }
 
 POSSIBLE_BOND_ORDERS = {
@@ -34,7 +35,8 @@ POSSIBLE_BOND_ORDERS = {
     'BR': {1},
     'F': {1},
     'I': {1},
-    'B': {1}
+    'B': {1},
+    'SI': {1, 2, 3},
 }
 
 POSSIBLE_CHARGES = {
@@ -49,6 +51,7 @@ POSSIBLE_CHARGES = {
     'F': {0},
     'I': {0},
     'B': {0},
+    'SI': {0},
 }
 
 assert set(FULL_VALENCES.keys()) == set(POSSIBLE_BOND_ORDERS.keys()) == set(POSSIBLE_CHARGES.keys())
@@ -94,6 +97,9 @@ INDIVIDUAL_CAPPING_OPTIONS = {
     'F1': [NO_CAP],
     'I1': [NO_CAP],
     'B3': [H2_CAP, H_CAP],
+    'SI4': [NO_CAP],
+    'SI3': [NO_CAP],
+    'SI2': [NO_CAP],
 }
 
 ALL_ELEMENT_VALENCE_COMBINATIONS = [
@@ -203,6 +209,7 @@ ELECTRONEGATIVITIES = {
     'F': 3.98,
     'I': 2.66,
     'B': 2.04,
+    'SI': 1.90,
 }
 
 assert set(ELECTRONEGATIVITIES.keys()) >= ALL_ELEMENTS, ALL_ELEMENTS - set(ELECTRONEGATIVITIES.keys())
