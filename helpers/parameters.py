@@ -43,8 +43,8 @@ POSSIBLE_CHARGES = {
     'S': {0},
     'C': {0},
     'H': {0},
-    'O': {0, -1},
-    'N': {0, +1},
+    'O': {-1, 0},
+    'N': {-1, 0, +1},
     'P': {0},
     'CL': {0},
     'BR': {0},
@@ -97,9 +97,9 @@ INDIVIDUAL_CAPPING_OPTIONS = {
     'F1': [NO_CAP],
     'I1': [NO_CAP],
     'B3': [H2_CAP, H_CAP],
-    'SI4': [NO_CAP],
-    'SI3': [NO_CAP],
-    'SI2': [NO_CAP],
+    'SI4': [H_CAP, H2_CAP, H3_CAP],
+    'SI3': [H_CAP, H2_CAP, H_CH2_CAP],
+    'SI2': [H_CAP],
 }
 
 ALL_ELEMENT_VALENCE_COMBINATIONS = [
