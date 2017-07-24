@@ -4,6 +4,16 @@
 
 Aim: Finding appropriate molecules to parametrise dihedral fragments on.
 
+## Non-standard dependencies
+
+* [graph_tool](https://graph-tool.skewed.de): Efficient network-analysis with Python
+* [chem_graph_tool](https://github.com/bertrand-caron/chem_graph_tool): Helper library to use `graph_tool` with chemical structure files (PDB format).
+* [chemistry_helpers](https://github.com/bertrand-caron/chemistry_helpers): Helper library for interacting with chemical structure files (PDB files, etc.)
+* [OpenBabel](http://openbabel.org): The Open Source Chemistry Toolbox
+
+All Python module should be located in your `PYTHONPATH`.
+
+
 ## Problem
 
 Given a partial molecule graph, construct molecules matching constraints
