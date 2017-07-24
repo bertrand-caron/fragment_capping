@@ -15,6 +15,7 @@ FULL_VALENCES = {
     'O': {2},
     'H': {1},
     'S': {2, 4, 6},
+    'SE': {2, 4, 6},
     'P': {3, 5},
     'CL': {1},
     'BR': {1},
@@ -26,6 +27,7 @@ FULL_VALENCES = {
 
 POSSIBLE_BOND_ORDERS = {
     'S': {1, 2},
+    'SE': {1, 2},
     'C': {1, 2, 3},
     'H': {1},
     'O': {1, 2},
@@ -41,6 +43,7 @@ POSSIBLE_BOND_ORDERS = {
 
 POSSIBLE_CHARGES = {
     'S': {0},
+    'SE': {0},
     'C': {0},
     'H': {0},
     'O': {-1, 0},
@@ -84,6 +87,10 @@ INDIVIDUAL_CAPPING_OPTIONS = {
     'S2': [H_CAP],
     'S4': [NO_CAP],
     'S6': [NO_CAP],
+    'SE1': [NO_CAP],
+    'SE2': [H_CAP],
+    'SE4': [NO_CAP],
+    'SE6': [NO_CAP],
     'C4': [H_CAP, H2_CAP, H3_CAP],
     'C3': [H_CAP, H2_CAP, H_CH2_CAP],
     'C2': [H_CAP],
@@ -203,6 +210,7 @@ ELECTRONEGATIVITIES = {
     'O': 3.44,
     'H': 2.20,
     'S': 2.58,
+    'SE': 2.55,
     'P': 2.19,
     'CL': 3.16,
     'BR': 2.96,
