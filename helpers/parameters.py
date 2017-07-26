@@ -70,14 +70,38 @@ Capping_Strategy = NamedTuple(
     ],
 )
 
-NO_CAP = Capping_Strategy((), (), ())
-H_CAP = Capping_Strategy(('H',), ((0, 1),), (1,))
-H2_CAP = Capping_Strategy(('H', 'H'), ((0, 1), (0, 2)), (1, 1))
-H3_CAP = Capping_Strategy(('H', 'H', 'H'), ((0, 1), (0, 2), (0, 3)), (1, 1, 1))
-H4_CAP = Capping_Strategy(('H', 'H', 'H', 'H'), ((0, 1), (0, 2), (0, 3), (0, 4)), (1, 1, 1, 1))
-H_CH2_CAP = Capping_Strategy(('H', 'C', 'H', 'H'), ((0, 1), (0, 2), (2, 3), (2, 4)), (1, 3, 1, 1))
-CH3_CAP = Capping_Strategy(('C', 'H', 'H', 'H'), ((0, 1), (1, 2), (1, 3), (1, 4)), (4, 1, 1, 1))
-O3_CAP = Capping_Strategy(('O', 'O', 'O'), ((0, 1), (0, 2), (0, 3)), (2, 1, 1))
+NO_CAP = Capping_Strategy([], [], [])
+
+def merge_caps(*list_of_capping_strategies: List[Capping_Strategy]) -> Capping_Strategy:
+    def renumber_atom_ids(atom_ids: Tuple[int, int], acc: Capping_Strategy) -> Tuple[int, int]:
+        return tuple(
+            [
+                0 if atom_id == 0 else atom_id + len(acc.new_atoms)
+                for atom_id in atom_ids
+            ],
+        )
+
+    return reduce(
+        lambda acc, capping_strategy: Capping_Strategy(
+            new_atoms=acc.new_atoms + capping_strategy.new_atoms,
+            new_bonds=acc.new_bonds + [renumber_atom_ids(atom_ids, acc) for atom_ids in capping_strategy.new_bonds],
+            new_valences=acc.new_valences + capping_strategy.new_valences,
+        ),
+        list_of_capping_strategies,
+        NO_CAP,
+    )
+
+H_CAP = Capping_Strategy(['H'], [(0, 1)], [1])
+H2_CAP = merge_caps(*[H_CAP] * 2)
+H3_CAP = merge_caps(*[H_CAP] * 3)
+H4_CAP = merge_caps(*[H_CAP] * 4)
+CH2_CAP = Capping_Strategy(['C', 'H', 'H'], [(0, 1), (1, 2), (1, 3)], [3, 1, 1])
+H_CH2_CAP = merge_caps(H_CAP, CH2_CAP)
+CH3_CAP = Capping_Strategy(['C', 'H', 'H', 'H'], [(0, 1), (1, 2), (1, 3), (1, 4)], [4, 1, 1, 1])
+O_CAP = Capping_Strategy(['O'], [(0, 1)], [1])
+O3_CAP = merge_caps(*[O_CAP] * 3)
+OH_CAP = Capping_Strategy(['O', 'H'], [(0, 1), (1, 2)], [2, 1])
+O_OH_OH_CAP = merge_caps(O_CAP, OH_CAP, OH_CAP)
 
 INDIVIDUAL_CAPPING_OPTIONS = {
     'H1': [NO_CAP],
@@ -98,7 +122,7 @@ INDIVIDUAL_CAPPING_OPTIONS = {
     'N2': [H_CAP, CH3_CAP],
     'N3': [H2_CAP],
     'N4': [H3_CAP],
-    'P5': [O3_CAP],
+    'P5': [O_OH_OH_CAP],
     'CL1': [NO_CAP],
     'BR1': [NO_CAP],
     'F1': [NO_CAP],
