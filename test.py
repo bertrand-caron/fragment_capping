@@ -12,6 +12,7 @@ def example_1() -> None:
         [
             (1, 2),
         ],
+        name='example_1',
     )
 
     uncapped_molecule.write_graph('uncapped_molecule')
@@ -68,6 +69,20 @@ def example_3() -> None:
     capped_molecule.write_graph('capped_molecule')
 
     print(capped_molecule.dummy_pdb())
+
+def example_4() -> None:
+    uncapped_molecule = Molecule(
+        {
+            1: Atom(index=1, element='C', valence=4, capped=False, coordinates=None),
+        },
+        [
+        ],
+        name='example_4',
+    )
+
+    uncapped_molecule.write_graph('uncapped_molecule')
+    capped_molecule = uncapped_molecule.get_best_capped_molecule(debug=None)
+    capped_molecule.write_graph('capped_molecule')
 
 # Source: https://doi.org/10.1016/j.jmgm.2005.12.005
 
@@ -426,10 +441,22 @@ def example_wang_12() -> None:
     capped_molecule = uncapped_molecule.get_best_capped_molecule()
     capped_molecule.write_graph('capped_molecule')
 
+def example_taxol_core() -> None:
+    uncapped_molecule = Molecule(
+        {5: Atom(index=5, element="C", valence=3, capped=False, coordinates=(0.746, 3.138, 0.794)), 7: Atom(index=7, element="O", valence=2, capped=True, coordinates=(1.175, 1.853, 0.61)), 8: Atom(index=8, element="C", valence=4, capped=True, coordinates=(1.672, 1.0, 1.641)), 9: Atom(index=9, element="C", valence=4, capped=True, coordinates=(2.696, 1.617, 2.644)), 10: Atom(index=10, element="H", valence=1, capped=True, coordinates=(2.871, 2.705, 2.545)), 11: Atom(index=11, element="H", valence=1, capped=True, coordinates=(3.667, 1.113, 2.766)), 12: Atom(index=12, element="O", valence=2, capped=True, coordinates=(1.805, 1.347, 3.756)), 13: Atom(index=13, element="C", valence=4, capped=True, coordinates=(0.741, 0.845, 2.897)), 14: Atom(index=14, element="H", valence=1, capped=True, coordinates=(-0.111, 1.567, 2.942)), 15: Atom(index=15, element="C", valence=4, capped=False, coordinates=(0.262, -0.558, 3.171)), 18: Atom(index=18, element="C", valence=4, capped=False, coordinates=(1.353, -1.632, 3.131)), 20: Atom(index=20, element="O", valence=2, capped=True, coordinates=(1.998, -1.605, 4.383)), 21: Atom(index=21, element="H", valence=1, capped=True, coordinates=(2.798, -2.116, 4.304)), 22: Atom(index=22, element="C", valence=4, capped=False, coordinates=(2.315, -1.541, 1.879)), 29: Atom(index=29, element="C", valence=4, capped=True, coordinates=(1.951, -0.352, 0.936)), 30: Atom(index=30, element="H", valence=1, capped=True, coordinates=(0.931, -0.608, 0.548)), 31: Atom(index=31, element="C", valence=4, capped=True, coordinates=(2.911, -0.285, -0.293)), 32: Atom(index=32, element="H", valence=1, capped=True, coordinates=(3.702, -1.082, -0.163)), 33: Atom(index=33, element="O", valence=2, capped=False, coordinates=(3.52, 1.006, -0.367)), 101: Atom(index=101, element="C", valence=4, capped=False, coordinates=(0.908, -3.278, 0.308)), 47: Atom(index=47, element="C", valence=4, capped=True, coordinates=(2.191, -0.548, -1.701)), 48: Atom(index=48, element="O", valence=2, capped=True, coordinates=(3.132, -0.275, -2.729)), 49: Atom(index=49, element="H", valence=1, capped=True, coordinates=(3.241, 0.668, -2.768)), 50: Atom(index=50, element="C", valence=4, capped=False, coordinates=(0.937, 0.345, -1.879)), 53: Atom(index=53, element="C", valence=4, capped=False, coordinates=(1.845, -2.08, -1.847)), 54: Atom(index=54, element="C", valence=3, capped=True, coordinates=(0.733, -2.32, -0.843)), 59: Atom(index=59, element="C", valence=3, capped=False, coordinates=(-0.388, -1.56, -0.899))},
+        {frozenset({5, 7}), frozenset({13, 15}), frozenset({18, 20}), frozenset({18, 15}), frozenset({50, 47}), frozenset({18, 22}), frozenset({8, 29}), frozenset({8, 9}), frozenset({32, 31}), frozenset({48, 47}), frozenset({9, 10}), frozenset({29, 30}), frozenset({29, 31}), frozenset({9, 11}), frozenset({53, 54}), frozenset({9, 12}), frozenset({20, 21}), frozenset({48, 49}), frozenset({29, 22}), frozenset({33, 31}), frozenset({31, 47}), frozenset({12, 13}), frozenset({13, 14}), frozenset({59, 54}), frozenset({8, 7}), frozenset({53, 47}), frozenset({101, 54}), frozenset({8, 13})},
+        name='example_taxol_core',
+    )
+
+    uncapped_molecule.write_graph('uncapped_molecule', output_size=(1200, 1200))
+    capped_molecule = uncapped_molecule.get_best_capped_molecule()
+    capped_molecule.write_graph('capped_molecule', output_size=(1200, 1200))
+
 ALL_EXAMPLES = [
     example_1,
     example_2,
     example_3,
+    example_4,
     example_wang_1,
     example_wang_2,
     example_wang_3,
@@ -442,6 +469,7 @@ ALL_EXAMPLES = [
     example_wang_10,
     example_wang_11,
     example_wang_12,
+    example_taxol_core,
 ]
 
 if __name__ == '__main__':

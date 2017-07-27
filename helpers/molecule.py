@@ -401,20 +401,24 @@ class Molecule:
         edge_types = g.new_edge_property("string")
         g.edge_properties['type'] = edge_types
 
+        vertex_colors = g.new_vertex_property("string")
+        g.vertex_properties['color'] = vertex_colors
+
         vertices = {}
-        for atom_index in sorted(self.atoms.keys()):
+        for (atom_index, atom) in sorted(self.atoms.items()):
             v = g.add_vertex()
             if self.charges is None:
-                possible_charges = possible_charge_for_atom(self.atoms[atom_index])
+                possible_charges = possible_charge_for_atom(atom)
                 charge_str = str(possible_charges)[1:-1] if len(possible_charges) > 1 else ''
             else:
                 charge = self.charges[atom_index]
                 charge_str = (str(charge) + ('-' if charge < 0 else '+')) if charge != 0 else ''
             vertex_types[v] = '{element}{valence} {charge_str}'.format(
-                element=self.atoms[atom_index].element,
-                valence=self.atoms[atom_index].valence if self.use_neighbour_valences else '',
+                element=atom.element,
+                valence=atom.valence if self.use_neighbour_valences else '',
                 charge_str=charge_str,
             )
+            vertex_colors[v] = '#960018' if atom.capped else '#00008B'
             vertices[atom_index] = v
 
         for bond in self.bonds:
@@ -599,14 +603,20 @@ class Molecule:
             [],
         )
 
-        return {
-            key: len(list(group))
-            for (key, group) in groupby(
-                sorted(
-                    bond_atoms,
+        if len(self.atoms) == 1:
+            return {
+                atom_id: 0
+                for atom_id in self.atoms.keys()
+            }
+        else:
+            return {
+                key: len(list(group))
+                for (key, group) in groupby(
+                    sorted(
+                        bond_atoms,
+                    )
                 )
-            )
-        }
+            }
 
 Uncapped_Molecule = Molecule
 
@@ -627,7 +637,7 @@ def validate_bond_dict(atoms: Dict[int, Atom], bonds: Set[FrozenSet[int]]) -> No
 
     all_atom_indices = set(atoms.keys())
 
-    if all_atom_indices- all_bond_indices != set():
+    if all_atom_indices - all_bond_indices != set() and len(atoms) > 1:
         raise AssertionError('The atoms with the following indices have no bonds: {0}'.format(all_atom_indices - all_bond_indices))
 
     if all_bond_indices - all_atom_indices != set():
