@@ -13,7 +13,7 @@ from fragment_capping.helpers.parameters import FULL_VALENCES, POSSIBLE_CHARGES,
 
 DRAW_ALL_POSSIBLE_GRAPHS = False
 
-MAXIMUM_PERMUTATION_NUMBER = 200000
+MAXIMUM_PERMUTATION_NUMBER = 600000
 
 DESC = lambda x: -x
 
@@ -469,7 +469,7 @@ class Molecule:
 
         len_possible_bond_orders_and_charges = number_bond_order_permutations * number_charges_permutations
 
-        if len_possible_bond_orders_and_charges > 500000:
+        if len_possible_bond_orders_and_charges > MAXIMUM_PERMUTATION_NUMBER:
             raise Too_Many_Permutations([number_bond_order_permutations, number_charges_permutations, len_possible_bond_orders_and_charges, list_of_possible_bond_orders_per_bond, list_of_possible_charges_per_atom])
 
         write_to_debug(debug, 'INFO: Found {0} possible charge and bond order assignments'.format(len_possible_bond_orders_and_charges))
