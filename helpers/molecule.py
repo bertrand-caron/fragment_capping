@@ -17,6 +17,9 @@ MAXIMUM_PERMUTATION_NUMBER = 600000
 
 DESC = lambda x: -x
 
+class No_Charges_And_Bond_Orders(Exception):
+    pass
+
 def product_len(list_of_lists: List[List[Any]]) -> int:
     _product_len = reduce(lambda acc, e: acc * len(e), list_of_lists, 1)
     if _product_len > MAXIMUM_PERMUTATION_NUMBER and False:
@@ -68,7 +71,11 @@ class Molecule:
         return list(self.atoms.keys())
 
     def __str__(self) -> str:
-        return 'Molecule(atoms={0}, bonds={1}; formula={2})'.format(self.atoms, self.bonds, self.formula(charge=False))
+        try:
+            netcharge = self.netcharge()
+        except No_Charges_And_Bond_Orders:
+            netcharge = None
+        return 'Molecule(atoms={0}, bonds={1}; formula={2}, netcharge={3})'.format(self.atoms, self.bonds, self.formula(charge=False), netcharge)
 
     def add_atom(self, atom: Atom, bonded_to: Optional[List[int]] = None) -> int:
         highest_id = max(self.atoms.keys())
@@ -238,7 +245,7 @@ class Molecule:
                 lambda mol: mol is not None,
                 [
                     self.capped_molecule_with(capping_strategies, atoms_need_capping, debug=debug, debug_line='molecule {0}/{1}'.format(i, len(capping_schemes)))
-                    for (i, capping_strategies) in enumerate(capping_schemes)
+                    for (i, capping_strategies) in enumerate(capping_schemes, start=1)
                 ],
             ),
             key=lambda mol: (mol.net_abs_charges(), mol.n_atoms(), mol.double_bonds_fitness()),
@@ -483,7 +490,7 @@ class Molecule:
                     charges,
                 )
                 for (i, (bond_orders, charges)) in enumerate(possible_bond_orders_and_charges)
-                if self.is_valid(bond_orders, charges, debug=None, debug_line='{0}/{1}'.format(i, len_possible_bond_orders_and_charges))
+                if self.is_valid(bond_orders, charges, debug=debug, debug_line='{0}/{1}'.format(i, len_possible_bond_orders_and_charges))
             ],
             key=lambda __charges: sum(map(abs, list(__charges[1].values()))),
         )
@@ -504,13 +511,13 @@ class Molecule:
         try:
             return sum(self.charges.values())
         except:
-            raise Exception('Assign charges and bond_orders first.')
+            raise No_Charges_And_Bond_Orders('Assign charges and bond_orders first.')
 
     def net_abs_charges(self) -> int:
         try:
             return sum(map(abs, list(self.charges.values())))
         except:
-            raise Exception('Assign charges and bond_orders first.')
+            raise No_Charges_And_Bond_Orders('Assign charges and bond_orders first.')
 
     def is_valid(self, bond_orders: List[int], charges: Dict[int, int], debug: Optional[TextIO] = None, debug_line: Optional[Any] = None) -> bool:
         assert len(self.bonds) == len(bond_orders), 'Unmatched bonds and bond_orders: {0} != {1}'.format(
@@ -524,25 +531,40 @@ class Molecule:
         if debug is not None:
             write_to_debug(
                 debug,
+                'is_valid [(atom_id, element, bonded_electrons, charge, allowed_valences, is_valid) for atom_id]',
+            )
+            write_to_debug(
+                debug,
                 'is_valid',
                 [
-                    (atom_id, sum(map(on_bond_order, group)), charges[atom_id], FULL_VALENCES[self.atoms[atom_id].element])
+                    (
+                        atom_id,
+                        self.atoms[atom_id].element,
+                        sum(map(on_bond_order, group)),
+                        charges[atom_id],
+                        FULL_VALENCES[self.atoms[atom_id].element],
+                        sum(map(on_bond_order, group)) - charges[atom_id] in FULL_VALENCES[self.atoms[atom_id].element],
+                    )
                     for (atom_id, group) in
-                    groupby(
-                        sorted(
-                            reduce(
-                                lambda acc, e: acc + e,
-                                [
-                                    ((atom_id_1, bond_order), (atom_id_2, bond_order))
-                                    for ((atom_id_1, atom_id_2), bond_order) in
-                                    zip(self.bonds, bond_orders)
-                                ],
-                                (),
+                    map( # Cast groupby's iterators to lists to be able to read them several times
+                        lambda T: (T[0], list(T[1])),
+                        groupby(
+                            sorted(
+                                reduce(
+                                    lambda acc, e: acc + e,
+                                    [
+                                        ((atom_id_1, bond_order), (atom_id_2, bond_order))
+                                        for ((atom_id_1, atom_id_2), bond_order) in
+                                        zip(self.bonds, bond_orders)
+                                    ],
+                                    (),
+                                ),
+                                key=on_atom_id,
                             ),
                             key=on_atom_id,
                         ),
-                        key=on_atom_id,
                     )
+                    if not sum(map(on_bond_order, group)) - charges[atom_id] in FULL_VALENCES[self.atoms[atom_id].element]
                 ],
             )
 
