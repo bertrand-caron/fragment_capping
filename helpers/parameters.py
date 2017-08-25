@@ -97,6 +97,7 @@ H3_CAP = merge_caps(*[H_CAP] * 3)
 H4_CAP = merge_caps(*[H_CAP] * 4)
 CH2_CAP = Capping_Strategy(['C', 'H', 'H'], [(0, 1), (1, 2), (1, 3)], [3, 1, 1])
 H_CH2_CAP = merge_caps(H_CAP, CH2_CAP)
+C_H_CAP = Capping_Strategy(['C', 'H'], [(0, 1), (1, 2)], [2, 1])
 CH3_CAP = Capping_Strategy(['C', 'H', 'H', 'H'], [(0, 1), (1, 2), (1, 3), (1, 4)], [4, 1, 1, 1])
 O_CAP = Capping_Strategy(['O'], [(0, 1)], [1])
 O3_CAP = merge_caps(*[O_CAP] * 3)
@@ -117,7 +118,7 @@ INDIVIDUAL_CAPPING_OPTIONS = {
     'SE6': [NO_CAP],
     'C4': [H_CAP, H2_CAP, H3_CAP, H4_CAP],
     'C3': [H_CAP, H2_CAP, H_CH2_CAP],
-    'C2': [H_CAP],
+    'C2': [H_CAP, C_H_CAP],
     'N1': [NO_CAP],
     'N2': [H_CAP, CH3_CAP],
     'N3': [H2_CAP],
