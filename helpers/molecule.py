@@ -734,10 +734,10 @@ class Molecule:
                 self.lone_pairs[atom_or_bond_index] = must_be_int(v.varValue)
             else:
                 raise Exception('Unknown variable type: {0}'.format(variable_type))
-        print('molecule_name', self.name)
-        print('bond_orders:', self.bond_orders)
-        print('charges', self.charges)
-        print('lone_pairs', self.lone_pairs)
+        write_to_debug(debug, 'molecule_name', self.name)
+        write_to_debug(debug, 'bond_orders:', self.bond_orders)
+        write_to_debug(debug, 'charges', self.charges)
+        write_to_debug(debug, 'lone_pairs', self.lone_pairs)
 
 Uncapped_Molecule = Molecule
 
