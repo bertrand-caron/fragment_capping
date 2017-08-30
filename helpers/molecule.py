@@ -646,7 +646,7 @@ class Molecule:
             }
 
     def assign_bond_orders_and_charges_with_ILP(self, debug: Optional[TextIO] = None) -> None:
-        from pulp import LpProblem, LpMinimize, LpInteger, LpVariable
+        from pulp import LpProblem, LpMinimize, LpInteger, LpVariable, LpBinary
 
         problem = LpProblem("Lewis problem (bond order and charge assignment) for molecule {0}".format(self.name), LpMinimize)
 
@@ -681,10 +681,16 @@ class Molecule:
         problem += sum(absolute_charges.values()), 'Minimise total sum of absolute charges'
 
         for atom in self.atoms.values():
-            if len(FULL_VALENCES[atom.element]) == 1:
+            if len(FULL_VALENCES[atom.element]) == 1 and False:
                 problem += sum([bond_orders[bond] for bond in self.bonds if atom.index in bond]) - charges[atom.index] == tuple(FULL_VALENCES[atom.element])[0], '{element}_{index}'.format(element=atom.element, index=atom.index)
             else:
-                raise Exception('Not implemented')
+                valence_switch_variables = {
+                    possible_valence: LpVariable("V_{i}_{j}".format(i=atom.index, j=i), 0, 1, LpBinary)
+                    for (i, possible_valence) in enumerate(FULL_VALENCES[atom.element], start=1)
+                }
+                problem += sum(valence_switch_variables.values()) == 1, 'Sum of V_{i}_j'.format(i=atom.index)
+                for (possible_valence, switch_variable) in valence_switch_variables.items():
+                    problem += switch_variable * (sum([bond_orders[bond] for bond in self.bonds if atom.index in bond]) - charges[atom.index]) == possible_valence, '{element}_{index}'.format(element=atom.element, index=atom.index)
 
         # Deal with absolute values
         for atom in self.atoms.values():
