@@ -696,6 +696,14 @@ class Molecule:
             'O': 6,
             'F': 7,
             'NE': 8,
+            'NA': 1,
+            'MG': 2,
+            'AL': 3,
+            'SI': 4,
+            'P': 5,
+            'S': 6,
+            'CL': 7,
+            'AR': 8,
         }
 
         for atom in self.atoms.values():
@@ -710,21 +718,23 @@ class Molecule:
         problem.solve()
 
         self.charges, self.bond_orders, self.lone_pairs = {}, {}, {}
+        must_be_int = lambda x: round(x)
 
         for v in problem.variables():
             variable_type, atom_or_bond_index_str = v.name.split('_')
             atom_or_bond_index = int(atom_or_bond_index_str)
             if variable_type == 'C':
-                self.charges[atom_or_bond_index] = v.varValue
+                self.charges[atom_or_bond_index] = must_be_int(v.varValue)
             elif variable_type == 'B':
-                self.bond_orders[bond_reverse_mapping[atom_or_bond_index]] = v.varValue
+                self.bond_orders[bond_reverse_mapping[atom_or_bond_index]] = must_be_int(v.varValue)
                 pass
             elif variable_type == 'Z':
                 pass
             elif variable_type == 'N':
-                self.lone_pairs[atom_or_bond_index] = v.varValue
+                self.lone_pairs[atom_or_bond_index] = must_be_int(v.varValue)
             else:
                 raise Exception('Unknown variable type: {0}'.format(variable_type))
+        print('molecule_name', self.name)
         print('bond_orders:', self.bond_orders)
         print('charges', self.charges)
         print('lone_pairs', self.lone_pairs)
