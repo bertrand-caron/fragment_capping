@@ -17,6 +17,8 @@ MAXIMUM_PERMUTATION_NUMBER = 600000
 
 DESC = lambda x: -x
 
+USE_ILP = True
+
 class No_Charges_And_Bond_Orders(Exception):
     pass
 
@@ -142,7 +144,10 @@ class Molecule:
 
         try:
             write_to_debug(debug, debug_line)
-            capped_molecule.assign_bond_orders_and_charges(debug=debug)
+            if USE_ILP:
+                capped_molecule.assign_bond_orders_and_charges_with_ILP(debug=debug)
+            else:
+                capped_molecule.assign_bond_orders_and_charges(debug=debug)
             return capped_molecule
         except AssertionError as e:
             write_to_debug(
@@ -639,6 +644,71 @@ class Molecule:
                     )
                 )
             }
+
+    def assign_bond_orders_and_charges_with_ILP(self, debug: Optional[TextIO] = None) -> None:
+        from pulp import LpProblem, LpMinimize, LpInteger, LpVariable
+
+        problem = LpProblem("Lewis problem (bond order and charge assignment) for molecule {0}".format(self.name), LpMinimize)
+
+        MIN_ABSOLUTE_CHARGE, MAX_ABSOLUTE_CHARGE = 0, 9
+        MIN_BOND_ORDER, MAX_BOND_ORDER = 1, 3
+
+        charges = {
+            atom.index: LpVariable("C_{i}".format(i=atom.index), -MAX_ABSOLUTE_CHARGE, MAX_ABSOLUTE_CHARGE, LpInteger)
+            for atom in self.atoms.values()
+        }
+
+        # Extra variable use to bind charges
+        absolute_charges = {
+            atom_id: LpVariable("Z_{i}".format(i=atom_id), MIN_ABSOLUTE_CHARGE, MAX_ABSOLUTE_CHARGE, LpInteger)
+            for atom_id in charges.keys()
+        }
+
+        # Maps a bond to an integer
+        bond_mapping = {
+            bond: i
+            for (i, bond) in enumerate(self.bonds)
+        }
+
+        # Maps an integer to a bond
+        bond_reverse_mapping = {v: k for (k, v) in bond_mapping.items()}
+
+        bond_orders = {
+            bond: LpVariable("B_{i}".format(i=bond_mapping[bond]), MIN_BOND_ORDER, MAX_BOND_ORDER, LpInteger)
+            for bond in self.bonds
+        }
+
+        problem += sum(absolute_charges.values()), 'Minimise total sum of absolute charges'
+
+        for atom in self.atoms.values():
+            if len(FULL_VALENCES[atom.element]) == 1:
+                problem += sum([bond_orders[bond] for bond in self.bonds if atom.index in bond]) - charges[atom.index] == tuple(FULL_VALENCES[atom.element])[0], '{element}_{index}'.format(element=atom.element, index=atom.index)
+            else:
+                raise Exception('Not implemented')
+
+        # Deal with absolute values
+        for atom in self.atoms.values():
+            problem += charges[atom.index] <= absolute_charges[atom.index], 'Absolute charge contraint 1 {i}'.format(i=atom.index)
+            problem += -charges[atom.index] <= absolute_charges[atom.index], 'Absolute charge contraint 2 {i}'.format(i=atom.index)
+
+        problem.writeLP("lewis_{0}.lp".format(self.name))
+        problem.solve()
+
+        self.charges, self.bond_orders = {}, {}
+
+        for v in problem.variables():
+            variable_type, atom_or_bond_index_str = v.name.split('_')
+            atom_or_bond_index = int(atom_or_bond_index_str)
+            print(v.name, "=", v.varValue, variable_type, atom_or_bond_index)
+            if variable_type == 'C':
+                self.charges[atom_or_bond_index] = v.varValue
+            elif variable_type == 'B':
+                self.bond_orders[bond_reverse_mapping[atom_or_bond_index]] = v.varValue
+                pass
+            elif variable_type == 'Z':
+                pass
+            else:
+                raise Exception('Unknown variable type: {0}'.format(variable_type))
 
 Uncapped_Molecule = Molecule
 
