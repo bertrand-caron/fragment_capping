@@ -664,6 +664,11 @@ class Molecule:
             for atom_id in charges.keys()
         }
 
+        non_bonded_pairs = {
+            atom_id: LpVariable("N_{i}".format(i=atom_id), 0, 18 / 2, LpInteger)
+            for atom_id in self.atoms.keys()
+        }
+
         # Maps a bond to an integer
         bond_mapping = {
             bond: i
@@ -680,17 +685,21 @@ class Molecule:
 
         problem += sum(absolute_charges.values()), 'Minimise total sum of absolute charges'
 
+        VALENCE_ELECTRONS = {
+            'H': 1,
+            'HE': 2,
+            'LI': 1,
+            'BE': 2,
+            'B': 3,
+            'C': 4,
+            'N': 5,
+            'O': 6,
+            'F': 7,
+            'NE': 8,
+        }
+
         for atom in self.atoms.values():
-            if len(FULL_VALENCES[atom.element]) == 1 and False:
-                problem += sum([bond_orders[bond] for bond in self.bonds if atom.index in bond]) - charges[atom.index] == tuple(FULL_VALENCES[atom.element])[0], '{element}_{index}'.format(element=atom.element, index=atom.index)
-            else:
-                valence_switch_variables = {
-                    possible_valence: LpVariable("V_{i}_{j}".format(i=atom.index, j=i), 0, 1, LpBinary)
-                    for (i, possible_valence) in enumerate(FULL_VALENCES[atom.element], start=1)
-                }
-                problem += sum(valence_switch_variables.values()) == 1, 'Sum of V_{i}_j'.format(i=atom.index)
-                for (possible_valence, switch_variable) in valence_switch_variables.items():
-                    problem += switch_variable * (sum([bond_orders[bond] for bond in self.bonds if atom.index in bond]) - charges[atom.index]) == possible_valence, '{element}_{index}'.format(element=atom.element, index=atom.index)
+            problem += charges[atom.index] == VALENCE_ELECTRONS[atom.element] - sum([bond_orders[bond] for bond in self.bonds if atom.index in bond]) - 2 * non_bonded_pairs[atom.index], '{element}_{index}'.format(element=atom.element, index=atom.index)
 
         # Deal with absolute values
         for atom in self.atoms.values():
@@ -700,12 +709,11 @@ class Molecule:
         problem.writeLP("lewis_{0}.lp".format(self.name))
         problem.solve()
 
-        self.charges, self.bond_orders = {}, {}
+        self.charges, self.bond_orders, self.lone_pairs = {}, {}, {}
 
         for v in problem.variables():
             variable_type, atom_or_bond_index_str = v.name.split('_')
             atom_or_bond_index = int(atom_or_bond_index_str)
-            print(v.name, "=", v.varValue, variable_type, atom_or_bond_index)
             if variable_type == 'C':
                 self.charges[atom_or_bond_index] = v.varValue
             elif variable_type == 'B':
@@ -713,8 +721,13 @@ class Molecule:
                 pass
             elif variable_type == 'Z':
                 pass
+            elif variable_type == 'N':
+                self.lone_pairs[atom_or_bond_index] = v.varValue
             else:
                 raise Exception('Unknown variable type: {0}'.format(variable_type))
+        print('bond_orders:', self.bond_orders)
+        print('charges', self.charges)
+        print('lone_pairs', self.lone_pairs)
 
 Uncapped_Molecule = Molecule
 

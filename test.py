@@ -86,6 +86,28 @@ def example_4() -> None:
 
 # Source: https://doi.org/10.1016/j.jmgm.2005.12.005
 
+def example_5() -> None:
+    uncapped_molecule = Molecule(
+        {
+            1: Atom(index=1, element='C', valence=2, capped=True, coordinates=None),
+            2: Atom(index=2, element='O', valence=1, capped=True, coordinates=None),
+            3: Atom(index=3, element='O', valence=1, capped=True, coordinates=None),
+        },
+        [
+            (1, 2),
+            (1, 3),
+        ],
+        name='example_5',
+    )
+
+    uncapped_molecule.write_graph('uncapped_molecule')
+
+    capped_molecule = uncapped_molecule.get_best_capped_molecule(debug=None)
+
+    capped_molecule.write_graph('capped_molecule')
+
+    print(capped_molecule.dummy_pdb())
+
 def example_wang_1() -> None:
     uncapped_molecule = Molecule(
         {
@@ -457,6 +479,7 @@ ALL_EXAMPLES = [
     example_2,
     example_3,
     example_4,
+    example_5,
     example_wang_1,
     example_wang_2,
     example_wang_3,
