@@ -9,7 +9,7 @@ from hashlib import md5
 from sys import stderr
 
 from fragment_capping.helpers.types_helpers import Fragment, ATB_Molid, Atom, FRAGMENT_CAPPING_DIR
-from fragment_capping.helpers.parameters import FULL_VALENCES, POSSIBLE_CHARGES, get_capping_options, new_atom_for_capping_strategy, Capping_Strategy, possible_bond_order_for_atom_pair, min_valence, max_valence, coordinates_n_angstroms_away_from, possible_charge_for_atom, ALL_ELEMENTS, electronegativity_spread
+from fragment_capping.helpers.parameters import FULL_VALENCES, POSSIBLE_CHARGES, get_capping_options, new_atom_for_capping_strategy, Capping_Strategy, possible_bond_order_for_atom_pair, min_valence, max_valence, coordinates_n_angstroms_away_from, possible_charge_for_atom, ALL_ELEMENTS, electronegativity_spread, ELECTRONEGATIVITIES
 
 DRAW_ALL_POSSIBLE_GRAPHS = False
 
@@ -694,7 +694,9 @@ class Molecule:
             for bond in self.bonds
         }
 
-        problem += sum(absolute_charges.values()), 'Minimise total sum of absolute charges'
+        max_electronegativity_score = sum(MAX_ABSOLUTE_CHARGE * ELECTRONEGATIVITIES[self.atoms[atom_id].element] for (atom_id, atom) in charges.items())
+
+        problem += sum(absolute_charges.values()) + (1 / max_electronegativity_score) * sum([charge * ELECTRONEGATIVITIES[self.atoms[atom_id].element] for (atom_id, charge) in charges.items()]), 'Minimise total sum of absolute charges'
 
         VALENCE_ELECTRONS = {
             'H': 1,
