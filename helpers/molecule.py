@@ -17,8 +17,6 @@ MAXIMUM_PERMUTATION_NUMBER = 600000
 
 DESC = lambda x: -x
 
-USE_ILP = True
-
 class No_Charges_And_Bond_Orders(Exception):
     pass
 
@@ -39,7 +37,7 @@ def write_to_debug(debug: Optional[TextIO], *objects: Sequence[Any]) -> None:
         debug.write(' '.join(map(str, objects)) + '\n')
 
 class Molecule:
-    def __init__(self, atoms: Dict[int, Atom], bonds: List[Tuple[int, int]], name: Optional[str] = None) -> None:
+    def __init__(self, atoms: Dict[int, Atom], bonds: List[Tuple[int, int]], name: Optional[str] = None, **kwargs: Dict[str, Any]) -> None:
         self.atoms = validated_atoms_dict(atoms)
         self.bonds = set(map(frozenset, bonds))
         validate_bond_dict(self.atoms, self.bonds)
@@ -52,6 +50,7 @@ class Molecule:
         )
 
         self.bond_orders, self.charges = None, None
+        self.previously_uncapped = set()
 
     def atom_desc(self, atom: Atom):
         if self.use_neighbour_valences:
@@ -77,7 +76,7 @@ class Molecule:
             netcharge = self.netcharge()
         except No_Charges_And_Bond_Orders:
             netcharge = None
-        return 'Molecule(atoms={0}, bonds={1}; formula={2}, netcharge={3})'.format(self.atoms, self.bonds, self.formula(charge=False), netcharge)
+        return 'Molecule(atoms={0}, bonds={1}, formula="{2}", netcharge={3})'.format(self.atoms, self.bonds, self.formula(charge=False), netcharge)
 
     def add_atom(self, atom: Atom, bonded_to: Optional[List[int]] = None) -> int:
         highest_id = max(self.atoms.keys())
@@ -95,7 +94,7 @@ class Molecule:
     def add_bonds(self, bonds: List[Tuple[int, int]]) -> None:
         self.bonds |= set(map(frozenset, bonds))
 
-    def capped_molecule_with(self, capping_strategies: List[Any], atoms_need_capping: Any, debug: Optional[TextIO] = None, debug_line: Optional[Any] = None) -> Any:
+    def capped_molecule_with(self, capping_strategies: List[Any], atoms_need_capping: Any, debug: Optional[TextIO] = None, debug_line: Optional[Any] = None, use_ILP: bool = True) -> Any:
         capped_molecule = deepcopy(self)
 
         for (atom, capping_strategy) in zip(atoms_need_capping, capping_strategies):
@@ -134,6 +133,7 @@ class Molecule:
                     coordinates=coordinates_n_angstroms_away_from(atom, 1.2),
                 )
             capped_molecule.atoms[atom_id] = atom._replace(capped=True)
+            self.previously_uncapped.add(atom_id)
 
         assert all([atom.capped for atom in capped_molecule.atoms.values()]), 'Some atoms were not capped: {0}'.format(
             [atom for atom in capped_molecule.atoms.values() if not atom.capped],
@@ -144,7 +144,7 @@ class Molecule:
 
         try:
             write_to_debug(debug, debug_line)
-            if USE_ILP:
+            if use_ILP:
                 capped_molecule.assign_bond_orders_and_charges_with_ILP(debug=debug)
             else:
                 capped_molecule.assign_bond_orders_and_charges(debug=debug)
@@ -178,7 +178,7 @@ class Molecule:
             print('Bonds were: {0}'.format(self.bonds))
             raise
 
-    def get_best_capped_molecule(self, draw_all_possible_graphs: bool = DRAW_ALL_POSSIBLE_GRAPHS, debug: Optional[TextIO] = None):
+    def get_best_capped_molecule(self, draw_all_possible_graphs: bool = DRAW_ALL_POSSIBLE_GRAPHS, debug: Optional[TextIO] = None, use_ILP: bool = True):
         capping_options = get_capping_options(self.use_neighbour_valences)
 
         neighbour_counts = self.neighbours_for_atoms()
@@ -249,7 +249,7 @@ class Molecule:
             filter(
                 lambda mol: mol is not None,
                 [
-                    self.capped_molecule_with(capping_strategies, atoms_need_capping, debug=debug, debug_line='molecule {0}/{1}'.format(i, len(capping_schemes)))
+                    self.capped_molecule_with(capping_strategies, atoms_need_capping, debug=debug, debug_line='molecule {0}/{1}'.format(i, len(capping_schemes)), use_ILP=use_ILP)
                     for (i, capping_strategies) in enumerate(capping_schemes, start=1)
                 ],
             ),
@@ -421,16 +421,21 @@ class Molecule:
             v = g.add_vertex()
             if self.charges is None:
                 possible_charges = possible_charge_for_atom(atom)
-                charge_str = str(possible_charges)[1:-1] if len(possible_charges) > 1 else ''
+                charge_str = str(possible_charges).replace(' ', '') if len(possible_charges) > 1 else ''
             else:
                 charge = self.charges[atom_index]
-                charge_str = (str(charge) + ('-' if charge < 0 else '+')) if charge != 0 else ''
-            vertex_types[v] = '{element}{valence} {charge_str}'.format(
+                charge_str = (str(abs(charge)) + ('-' if charge < 0 else '+')) if charge != 0 else ''
+            vertex_types[v] = '{element}{valence}{charge_str}'.format(
                 element=atom.element,
                 valence=atom.valence if self.use_neighbour_valences else '',
-                charge_str=charge_str,
+                charge_str=(' ' if charge_str else '') + charge_str,
             )
-            vertex_colors[v] = '#960018' if atom.capped else '#00008B'
+            if atom.index in self.previously_uncapped:
+                vertex_colors[v] = '#90EE90'
+            elif atom.capped:
+                vertex_colors[v] = '#EEEEEE'
+            else:
+                vertex_colors[v] = '#FF91A4'
             vertices[atom_index] = v
 
         for bond in self.bonds:

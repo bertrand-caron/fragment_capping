@@ -17,11 +17,10 @@ def example_1() -> None:
 
     uncapped_molecule.write_graph('uncapped_molecule')
 
-    capped_molecule = uncapped_molecule.get_best_capped_molecule(debug=None)
-
-    capped_molecule.write_graph('capped_molecule')
-
-    print(capped_molecule.dummy_pdb())
+    for use_ILP in (True, False):
+        capped_molecule = uncapped_molecule.get_best_capped_molecule(debug=None, use_ILP=use_ILP)
+        capped_molecule.write_graph('capped_molecule_with_{0}'.format('ILP' if use_ILP else 'bruteforce'))
+        print(capped_molecule.dummy_pdb())
 
 def example_2() -> None:
     uncapped_molecule = Molecule(
@@ -36,11 +35,10 @@ def example_2() -> None:
 
     uncapped_molecule.write_graph('uncapped_molecule')
 
-    capped_molecule = uncapped_molecule.get_best_capped_molecule()
-
-    capped_molecule.write_graph('capped_molecule')
-
-    print(capped_molecule.dummy_pdb())
+    for use_ILP in (True, False):
+        capped_molecule = uncapped_molecule.get_best_capped_molecule(debug=None, use_ILP=use_ILP)
+        capped_molecule.write_graph('capped_molecule_with_{0}'.format('ILP' if use_ILP else 'bruteforce'))
+        print(capped_molecule.dummy_pdb())
 
 def example_3() -> None:
     uncapped_molecule = Molecule(
@@ -63,12 +61,10 @@ def example_3() -> None:
     )
 
     uncapped_molecule.write_graph('uncapped_molecule')
-
-    capped_molecule = uncapped_molecule.get_best_capped_molecule()
-
-    capped_molecule.write_graph('capped_molecule')
-
-    print(capped_molecule.dummy_pdb())
+    for use_ILP in (True, False):
+        capped_molecule = uncapped_molecule.get_best_capped_molecule(debug=None, use_ILP=use_ILP)
+        capped_molecule.write_graph('capped_molecule_with_{0}'.format('ILP' if use_ILP else 'bruteforce'))
+        print(capped_molecule.dummy_pdb())
 
 def example_4() -> None:
     uncapped_molecule = Molecule(
@@ -81,8 +77,10 @@ def example_4() -> None:
     )
 
     uncapped_molecule.write_graph('uncapped_molecule')
-    capped_molecule = uncapped_molecule.get_best_capped_molecule(debug=None)
-    capped_molecule.write_graph('capped_molecule')
+    for use_ILP in (True, False):
+        capped_molecule = uncapped_molecule.get_best_capped_molecule(debug=None, use_ILP=use_ILP)
+        capped_molecule.write_graph('capped_molecule_with_{0}'.format('ILP' if use_ILP else 'bruteforce'))
+        print(capped_molecule.dummy_pdb())
 
 # Source: https://doi.org/10.1016/j.jmgm.2005.12.005
 
@@ -101,12 +99,10 @@ def example_5() -> None:
     )
 
     uncapped_molecule.write_graph('uncapped_molecule')
-
-    capped_molecule = uncapped_molecule.get_best_capped_molecule(debug=None)
-
-    capped_molecule.write_graph('capped_molecule')
-
-    print(capped_molecule.dummy_pdb())
+    for use_ILP in (True, False):
+        capped_molecule = uncapped_molecule.get_best_capped_molecule(debug=None, use_ILP=use_ILP)
+        capped_molecule.write_graph('capped_molecule_with_{0}'.format('ILP' if use_ILP else 'bruteforce'))
+        print(capped_molecule.dummy_pdb())
 
 def example_wang_1() -> None:
     uncapped_molecule = Molecule(
@@ -142,8 +138,10 @@ def example_wang_1() -> None:
     )
 
     uncapped_molecule.write_graph('uncapped_molecule')
-    capped_molecule = uncapped_molecule.get_best_capped_molecule()
-    capped_molecule.write_graph('capped_molecule')
+    for use_ILP in (True, False):
+        capped_molecule = uncapped_molecule.get_best_capped_molecule(debug=None, use_ILP=use_ILP)
+        capped_molecule.write_graph('capped_molecule_with_{0}'.format('ILP' if use_ILP else 'bruteforce'))
+        print(capped_molecule.dummy_pdb())
 
 def example_wang_2() -> None:
     uncapped_molecule = Molecule(
@@ -164,8 +162,10 @@ def example_wang_2() -> None:
     )
 
     uncapped_molecule.write_graph('uncapped_molecule')
-    capped_molecule = uncapped_molecule.get_best_capped_molecule()
-    capped_molecule.write_graph('capped_molecule')
+    for use_ILP in (True, False):
+        capped_molecule = uncapped_molecule.get_best_capped_molecule(debug=None, use_ILP=use_ILP)
+        capped_molecule.write_graph('capped_molecule_with_{0}'.format('ILP' if use_ILP else 'bruteforce'))
+        print(capped_molecule.dummy_pdb())
 
 def example_wang_3() -> None:
     uncapped_molecule = Molecule(
@@ -194,8 +194,10 @@ def example_wang_3() -> None:
     )
 
     uncapped_molecule.write_graph('uncapped_molecule')
-    capped_molecule = uncapped_molecule.get_best_capped_molecule()
-    capped_molecule.write_graph('capped_molecule')
+    for use_ILP in (True, False):
+        capped_molecule = uncapped_molecule.get_best_capped_molecule(debug=None, use_ILP=use_ILP)
+        capped_molecule.write_graph('capped_molecule_with_{0}'.format('ILP' if use_ILP else 'bruteforce'))
+        print(capped_molecule.dummy_pdb())
 
 def example_wang_4() -> None:
     uncapped_molecule = Molecule(
@@ -219,8 +221,10 @@ def example_wang_4() -> None:
     )
 
     uncapped_molecule.write_graph('uncapped_molecule')
-    capped_molecule = uncapped_molecule.get_best_capped_molecule()
-    capped_molecule.write_graph('capped_molecule')
+    for use_ILP in (True, False):
+        capped_molecule = uncapped_molecule.get_best_capped_molecule(debug=None, use_ILP=use_ILP)
+        capped_molecule.write_graph('capped_molecule_with_{0}'.format('ILP' if use_ILP else 'bruteforce'))
+        print(capped_molecule.dummy_pdb())
 
 def example_wang_5() -> None:
     uncapped_molecule = Molecule(
@@ -243,8 +247,10 @@ def example_wang_5() -> None:
     )
 
     uncapped_molecule.write_graph('uncapped_molecule')
-    capped_molecule = uncapped_molecule.get_best_capped_molecule()
-    capped_molecule.write_graph('capped_molecule')
+    for use_ILP in (True, False):
+        capped_molecule = uncapped_molecule.get_best_capped_molecule(debug=None, use_ILP=use_ILP)
+        capped_molecule.write_graph('capped_molecule_with_{0}'.format('ILP' if use_ILP else 'bruteforce'))
+        print(capped_molecule.dummy_pdb())
 
 def example_wang_6() -> None:
     uncapped_molecule = Molecule(
@@ -277,8 +283,10 @@ def example_wang_6() -> None:
     )
 
     uncapped_molecule.write_graph('uncapped_molecule')
-    capped_molecule = uncapped_molecule.get_best_capped_molecule()
-    capped_molecule.write_graph('capped_molecule')
+    for use_ILP in (True, False):
+        capped_molecule = uncapped_molecule.get_best_capped_molecule(debug=None, use_ILP=use_ILP)
+        capped_molecule.write_graph('capped_molecule_with_{0}'.format('ILP' if use_ILP else 'bruteforce'))
+        print(capped_molecule.dummy_pdb())
 
 def example_wang_7() -> None:
     uncapped_molecule = Molecule(
@@ -297,8 +305,10 @@ def example_wang_7() -> None:
     )
 
     uncapped_molecule.write_graph('uncapped_molecule')
-    capped_molecule = uncapped_molecule.get_best_capped_molecule()
-    capped_molecule.write_graph('capped_molecule')
+    for use_ILP in (True, False):
+        capped_molecule = uncapped_molecule.get_best_capped_molecule(debug=None, use_ILP=use_ILP)
+        capped_molecule.write_graph('capped_molecule_with_{0}'.format('ILP' if use_ILP else 'bruteforce'))
+        print(capped_molecule.dummy_pdb())
 
 def example_wang_8() -> None:
     uncapped_molecule = Molecule(
@@ -324,8 +334,10 @@ def example_wang_8() -> None:
     )
 
     uncapped_molecule.write_graph('uncapped_molecule')
-    capped_molecule = uncapped_molecule.get_best_capped_molecule()
-    capped_molecule.write_graph('capped_molecule')
+    for use_ILP in (True, False):
+        capped_molecule = uncapped_molecule.get_best_capped_molecule(debug=None, use_ILP=use_ILP)
+        capped_molecule.write_graph('capped_molecule_with_{0}'.format('ILP' if use_ILP else 'bruteforce'))
+        print(capped_molecule.dummy_pdb())
 
 def example_wang_9() -> None:
     uncapped_molecule = Molecule(
@@ -354,8 +366,10 @@ def example_wang_9() -> None:
     )
 
     uncapped_molecule.write_graph('uncapped_molecule')
-    capped_molecule = uncapped_molecule.get_best_capped_molecule()
-    capped_molecule.write_graph('capped_molecule')
+    for use_ILP in (True, False):
+        capped_molecule = uncapped_molecule.get_best_capped_molecule(debug=None, use_ILP=use_ILP)
+        capped_molecule.write_graph('capped_molecule_with_{0}'.format('ILP' if use_ILP else 'bruteforce'))
+        print(capped_molecule.dummy_pdb())
 
 def example_wang_10() -> None:
     uncapped_molecule = Molecule(
@@ -391,8 +405,10 @@ def example_wang_10() -> None:
     )
 
     uncapped_molecule.write_graph('uncapped_molecule')
-    capped_molecule = uncapped_molecule.get_best_capped_molecule()
-    capped_molecule.write_graph('capped_molecule')
+    for use_ILP in (True, False):
+        capped_molecule = uncapped_molecule.get_best_capped_molecule(debug=None, use_ILP=use_ILP)
+        capped_molecule.write_graph('capped_molecule_with_{0}'.format('ILP' if use_ILP else 'bruteforce'))
+        print(capped_molecule.dummy_pdb())
 
 def example_wang_11() -> None:
     uncapped_molecule = Molecule(
@@ -425,8 +441,10 @@ def example_wang_11() -> None:
     )
 
     uncapped_molecule.write_graph('uncapped_molecule')
-    capped_molecule = uncapped_molecule.get_best_capped_molecule()
-    capped_molecule.write_graph('capped_molecule')
+    for use_ILP in (True, False):
+        capped_molecule = uncapped_molecule.get_best_capped_molecule(debug=None, use_ILP=use_ILP)
+        capped_molecule.write_graph('capped_molecule_with_{0}'.format('ILP' if use_ILP else 'bruteforce'))
+        print(capped_molecule.dummy_pdb())
 
 def example_wang_12() -> None:
     uncapped_molecule = Molecule(
@@ -460,8 +478,10 @@ def example_wang_12() -> None:
     )
 
     uncapped_molecule.write_graph('uncapped_molecule')
-    capped_molecule = uncapped_molecule.get_best_capped_molecule()
-    capped_molecule.write_graph('capped_molecule')
+    for use_ILP in (True, False):
+        capped_molecule = uncapped_molecule.get_best_capped_molecule(debug=None, use_ILP=use_ILP)
+        capped_molecule.write_graph('capped_molecule_with_{0}'.format('ILP' if use_ILP else 'bruteforce'))
+        print(capped_molecule.dummy_pdb())
 
 def example_taxol_core() -> None:
     uncapped_molecule = Molecule(
@@ -471,8 +491,10 @@ def example_taxol_core() -> None:
     )
 
     uncapped_molecule.write_graph('uncapped_molecule', output_size=(1200, 1200))
-    capped_molecule = uncapped_molecule.get_best_capped_molecule()
-    capped_molecule.write_graph('capped_molecule', output_size=(1200, 1200))
+    for use_ILP in (True, False):
+        capped_molecule = uncapped_molecule.get_best_capped_molecule(debug=None, use_ILP=use_ILP)
+        capped_molecule.write_graph('capped_molecule_with_{0}'.format('ILP' if use_ILP else 'bruteforce'), output_size=(1200, 1200))
+        print(capped_molecule.dummy_pdb())
 
 ALL_EXAMPLES = [
     example_1,
