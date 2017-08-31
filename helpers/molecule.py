@@ -669,9 +669,15 @@ class Molecule:
             for atom_id in charges.keys()
         }
 
+        def can_atom_have_lone_pairs(atom: Atom) -> Atom:
+            if atom.element in {'C'}:
+                return False
+            else:
+                return True
+
         non_bonded_pairs = {
-            atom_id: LpVariable("N_{i}".format(i=atom_id), 0, 18 / 2, LpInteger)
-            for atom_id in self.atoms.keys()
+            atom_id: LpVariable("N_{i}".format(i=atom_id), 0, (18 / 2) if can_atom_have_lone_pairs(atom) else 0, LpInteger)
+            for (atom_id, atom) in self.atoms.items()
         }
 
         # Maps a bond to an integer
