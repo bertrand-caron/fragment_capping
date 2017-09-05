@@ -696,7 +696,7 @@ class Molecule:
 
         OBJECTIVES = [
             sum(absolute_charges.values()),
-            #sum([charge * ELECTRONEGATIVITIES[self.atoms[atom_id].element] for (atom_id, charge) in charges.items()]),
+            sum([charge * ELECTRONEGATIVITIES[self.atoms[atom_id].element] for (atom_id, charge) in charges.items()]),
             #sum([bond_orders[] * ELECTRONEGATIVITIES[self.atoms[atom_id].element] for (atom_id, charge) in charges.items()]),
         ]
 
@@ -729,7 +729,6 @@ class Molecule:
             problem += charges[atom.index] <= absolute_charges[atom.index], 'Absolute charge contraint 1 {i}'.format(i=atom.index)
             problem += -charges[atom.index] <= absolute_charges[atom.index], 'Absolute charge contraint 2 {i}'.format(i=atom.index)
 
-        problem.writeLP("lewis_{0}.lp".format(self.name))
         problem.sequentialSolve(OBJECTIVES)
 
         self.charges, self.bond_orders, self.lone_pairs = {}, {}, {}
