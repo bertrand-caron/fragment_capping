@@ -178,6 +178,108 @@ class Molecule:
             print('Bonds were: {0}'.format(self.bonds))
             raise
 
+    def get_best_capped_molecule_with_ILP(self, draw_all_possible_graphs: bool = DRAW_ALL_POSSIBLE_GRAPHS, debug: Optional[TextIO] = None):
+        capping_options = get_capping_options(self.use_neighbour_valences)
+
+        neighbour_counts = self.neighbours_for_atoms()
+
+        def keep_capping_strategy_for_atom(capping_strategy: Capping_Strategy, atom: Atom):
+            if self.use_neighbour_valences:
+                return neighbour_counts[atom.index] + new_atom_for_capping_strategy(capping_strategy) == atom.valence
+            else:
+                return min_valence(atom) <= neighbour_counts[atom.index] + new_atom_for_capping_strategy(capping_strategy) <= max_valence(atom)
+
+        def possible_capping_strategies_for_atom(atom: Atom) -> List[Capping_Strategy]:
+            if debug is not None:
+                write_to_debug(debug, atom)
+                for capping_strategy in capping_options[self.atom_desc(atom)]:
+                    write_to_debug(
+                        debug, 
+                        capping_strategy,
+                        new_atom_for_capping_strategy(capping_strategy),
+                        keep_capping_strategy_for_atom(capping_strategy, atom)
+                    )
+            return [
+                capping_strategy
+                for capping_strategy in capping_options[self.atom_desc(atom)]
+                if keep_capping_strategy_for_atom(capping_strategy, atom)
+            ]
+
+        atoms_need_capping = [atom for atom in self.sorted_atoms() if not atom.capped]
+        capping_schemes = list(
+            product(
+                *[
+                    possible_capping_strategies_for_atom(atom)
+                    for atom in atoms_need_capping
+                ]
+            ),
+        )
+
+        assert len(capping_schemes) > 0, [
+            (
+                atom,
+                possible_capping_strategies_for_atom(atom),
+            )
+            for atom in atoms_need_capping
+            if len(possible_capping_strategies_for_atom(atom)) == 0
+        ]
+
+        write_to_debug(
+            debug,
+            [
+                possible_capping_strategies_for_atom(atom)
+                for atom in atoms_need_capping
+            ],
+        )
+
+        if len(capping_schemes) >= MAXIMUM_PERMUTATION_NUMBER:
+            raise Too_Many_Permutations(len(capping_schemes))
+
+        write_to_debug(debug, 'atoms_need_capping: {0}'.format(atoms_need_capping))
+        write_to_debug(debug, 'capping_schemes: {0}'.format(capping_schemes))
+        write_to_debug(debug, 'capping_options: {0}'.format([
+            len(capping_options[self.atom_desc(atom)])
+            for atom in atoms_need_capping
+        ]))
+
+        write_to_debug(debug, 'atoms_need_capping: {0}'.format(atoms_need_capping))
+        write_to_debug(debug, 'INFO: Will try all {0} possible capped molecules'.format(len(capping_schemes)))
+
+        possible_capped_molecules = sorted(
+            filter(
+                lambda mol: mol is not None,
+                [
+                    self.capped_molecule_with(capping_strategies, atoms_need_capping, debug=debug, debug_line='molecule {0}/{1}'.format(i, len(capping_schemes)), use_ILP=use_ILP)
+                    for (i, capping_strategies) in enumerate(capping_schemes, start=1)
+                ],
+            ),
+            key=lambda mol: (mol.net_abs_charges(), mol.n_atoms(), mol.double_bonds_fitness()),
+        )
+
+        write_to_debug(debug, 'Possible capped molecules: {0} ({1}/{2})'.format(
+            [(mol.formula(charge=True), mol.net_abs_charges(), mol.double_bonds_fitness()) for mol in possible_capped_molecules],
+            len(possible_capped_molecules),
+            len(capping_schemes),
+        ))
+
+        if draw_all_possible_graphs:
+            try:
+                for (i, molecule) in enumerate(possible_capped_molecules):
+                    molecule.write_graph(i)
+            except Exception as e:
+                print(
+                    'ERROR: Could not plot graphs (error was: {0})'.format(
+                        str(e),
+                    ),
+                )
+                raise
+
+        if len(possible_capped_molecules) == 0:
+            raise Not_Capped_Error(self)
+
+        best_molecule = possible_capped_molecules[0]
+        return best_molecule
+
     def get_best_capped_molecule(self, draw_all_possible_graphs: bool = DRAW_ALL_POSSIBLE_GRAPHS, debug: Optional[TextIO] = None, use_ILP: bool = True):
         capping_options = get_capping_options(self.use_neighbour_valences)
 
