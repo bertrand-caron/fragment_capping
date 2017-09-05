@@ -1,14 +1,16 @@
-from typing import Dict, Any, NamedTuple, Optional, Tuple
+from typing import Dict, Any, NamedTuple, Optional, Tuple, FrozenSet
 from os.path import dirname, abspath
 
 Fragment = str
 
 ATB_Molid = int
 
+ATOM_INDEX = int
+
 Atom = NamedTuple(
     'Atom',
     [
-        ('index', int),
+        ('index', ATOM_INDEX),
         ('element', str),
         ('valence', Optional[int]),
         ('capped', bool),
@@ -16,5 +18,6 @@ Atom = NamedTuple(
     ],
 )
 
+Bond = FrozenSet[ATOM_INDEX]
 
 FRAGMENT_CAPPING_DIR = dirname(dirname(abspath(__file__)))

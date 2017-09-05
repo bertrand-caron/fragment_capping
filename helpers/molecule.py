@@ -1,4 +1,4 @@
-from typing import Any, Optional, List, Tuple, Dict, Union, Set, FrozenSet, Sequence, TextIO
+from typing import Any, Optional, List, Tuple, Dict, Union, Set, Sequence, TextIO
 from copy import deepcopy
 from operator import itemgetter
 from itertools import groupby, product
@@ -8,8 +8,8 @@ from os.path import join
 from hashlib import md5
 from sys import stderr
 
-from fragment_capping.helpers.types_helpers import Fragment, ATB_Molid, Atom, FRAGMENT_CAPPING_DIR
-from fragment_capping.helpers.parameters import FULL_VALENCES, POSSIBLE_CHARGES, get_capping_options, new_atom_for_capping_strategy, Capping_Strategy, possible_bond_order_for_atom_pair, min_valence, max_valence, coordinates_n_angstroms_away_from, possible_charge_for_atom, ALL_ELEMENTS, electronegativity_spread, ELECTRONEGATIVITIES
+from fragment_capping.helpers.types_helpers import Fragment, ATB_Molid, Atom, FRAGMENT_CAPPING_DIR, Bond, ATOM_INDEX
+from fragment_capping.helpers.parameters import FULL_VALENCES, POSSIBLE_CHARGES, get_capping_options, new_atom_for_capping_strategy, Capping_Strategy, possible_bond_order_for_atom_pair, min_valence, max_valence, coordinates_n_angstroms_away_from, possible_charge_for_atom, ALL_ELEMENTS, electronegativity_spread, ELECTRONEGATIVITIES, VALENCE_ELECTRONS, can_atom_have_lone_pairs, MIN_ABSOLUTE_CHARGE, MAX_ABSOLUTE_CHARGE, MIN_BOND_ORDER, MAX_BOND_ORDER, MUST_BE_INT
 
 DRAW_ALL_POSSIBLE_GRAPHS = False
 
@@ -37,7 +37,7 @@ def write_to_debug(debug: Optional[TextIO], *objects: Sequence[Any]) -> None:
         debug.write(' '.join(map(str, objects)) + '\n')
 
 class Molecule:
-    def __init__(self, atoms: Dict[int, Atom], bonds: List[Tuple[int, int]], name: Optional[str] = None, **kwargs: Dict[str, Any]) -> None:
+    def __init__(self, atoms: Dict[ATOM_INDEX, Atom], bonds: List[Tuple[int, int]], name: Optional[str] = None, **kwargs: Dict[str, Any]) -> None:
         self.atoms = validated_atoms_dict(atoms)
         self.bonds = set(map(frozenset, bonds))
         validate_bond_dict(self.atoms, self.bonds)
@@ -61,14 +61,14 @@ class Molecule:
     def assert_use_neighbour_valences(self) -> None:
         assert self.use_neighbour_valences, 'ERROR: self.use_neighbour_valences is set to False'
 
-    def valence(self, atom_id: int) -> int:
+    def valence(self, atom_id: ATOM_INDEX) -> int:
         self.assert_use_neighbour_valences()
         return self.atoms[atom_id].valence
 
-    def element(self, atom_id: int) -> str:
+    def element(self, atom_id: ATOM_INDEX) -> str:
         return self.atoms[atom_id].element
 
-    def ids(self) -> List[int]:
+    def ids(self) -> List[ATOM_INDEX]:
         return list(self.atoms.keys())
 
     def __str__(self) -> str:
@@ -88,58 +88,70 @@ class Molecule:
 
         return atom_id
 
+    def remove_atom(self, atom: Atom) -> None:
+        del self.atoms[atom.index]
+        self.bonds = [bond for bond in self.bonds if atom.index not in bond]
+
+    def remove_atoms(self, atoms: List[Atom]) -> None:
+        [remove_atom(atom) for atom in atoms]
+
     def add_bond(self, bond: Tuple[int, int]) -> None:
         self.bonds.add(frozenset(bond))
 
     def add_bonds(self, bonds: List[Tuple[int, int]]) -> None:
         self.bonds |= set(map(frozenset, bonds))
 
+    def extend_molecule_with(self, atom: Atom, capping_strategy: Capping_Strategy) -> Tuple[List[Atom], List[Bond]]:
+        atom_id = atom.index
+        new_atoms, fragment_bonds, new_valences = capping_strategy
+
+        last_used_id = sorted(self.ids())[-1]
+        new_ids = list(map(
+            lambda id__: id__[0] + last_used_id + 1,
+            enumerate(new_atoms),
+        ))
+        new_bonds = {
+            frozenset(
+                map(
+                    lambda id: atom_id if id == 0 else id + last_used_id,
+                    bond,
+                ),
+            )
+            for bond in fragment_bonds
+        }
+
+        self.add_bonds(new_bonds)
+
+        assert len(new_ids) == len(new_atoms) == len(new_valences), 'Wrong dimensions: {0}, {1}, {2}'.format(
+            new_ids,
+            new_atoms,
+            new_valences,
+        )
+
+        for (new_id, new_atom, new_valence) in zip(new_ids, new_atoms, new_valences):
+            self.atoms[new_id] = Atom(
+                index=new_id,
+                element=new_atom,
+                valence=new_valence if self.use_neighbour_valences else None,
+                capped=True,
+                coordinates=coordinates_n_angstroms_away_from(atom, 1.2),
+            )
+        self.atoms[atom_id] = atom._replace(capped=True)
+        self.previously_uncapped.add(atom_id)
+
+        return ([atom for (atom_id, atom) in self.atoms.items() if atom_id in new_ids], new_bonds)
+
     def capped_molecule_with(self, capping_strategies: List[Any], atoms_need_capping: Any, debug: Optional[TextIO] = None, debug_line: Optional[Any] = None, use_ILP: bool = True) -> Any:
         capped_molecule = deepcopy(self)
 
         for (atom, capping_strategy) in zip(atoms_need_capping, capping_strategies):
-            atom_id = atom.index
-            new_atoms, fragment_bonds, new_valences = capping_strategy
-
-            last_used_id = sorted(capped_molecule.ids())[-1]
-            new_ids = list(map(
-                lambda id__: id__[0] + last_used_id + 1,
-                enumerate(new_atoms),
-            ))
-            new_bonds = {
-                frozenset(
-                    map(
-                        lambda id: atom_id if id == 0 else id + last_used_id,
-                        bond,
-                    ),
-                )
-                for bond in fragment_bonds
-            }
-
-            capped_molecule.add_bonds(new_bonds)
-
-            assert len(new_ids) == len(new_atoms) == len(new_valences), 'Wrong dimensions: {0}, {1}, {2}'.format(
-                new_ids,
-                new_atoms,
-                new_valences,
-            )
-
-            for (new_id, new_atom, new_valence) in zip(new_ids, new_atoms, new_valences):
-                capped_molecule.atoms[new_id] = Atom(
-                    index=new_id,
-                    element=new_atom,
-                    valence=new_valence if self.use_neighbour_valences else None,
-                    capped=True,
-                    coordinates=coordinates_n_angstroms_away_from(atom, 1.2),
-                )
-            capped_molecule.atoms[atom_id] = atom._replace(capped=True)
-            self.previously_uncapped.add(atom_id)
+            capped_molecule.extend_molecule_with(atom, capping_strategy)
 
         assert all([atom.capped for atom in capped_molecule.atoms.values()]), 'Some atoms were not capped: {0}'.format(
             [atom for atom in capped_molecule.atoms.values() if not atom.capped],
         )
 
-        if self.use_neighbour_valences:
+        if capped_molecule.use_neighbour_valences:
             capped_molecule.check_valence()
 
         try:
@@ -232,53 +244,111 @@ class Molecule:
             ],
         )
 
-        if len(capping_schemes) >= MAXIMUM_PERMUTATION_NUMBER:
-            raise Too_Many_Permutations(len(capping_schemes))
+        from pulp import LpProblem, LpMinimize, LpInteger, LpVariable, LpBinary
 
-        write_to_debug(debug, 'atoms_need_capping: {0}'.format(atoms_need_capping))
-        write_to_debug(debug, 'capping_schemes: {0}'.format(capping_schemes))
-        write_to_debug(debug, 'capping_options: {0}'.format([
-            len(capping_options[self.atom_desc(atom)])
-            for atom in atoms_need_capping
-        ]))
+        problem = LpProblem("Capping problem for molecule {0}".format(self.name), LpMinimize)
 
-        write_to_debug(debug, 'atoms_need_capping: {0}'.format(atoms_need_capping))
-        write_to_debug(debug, 'INFO: Will try all {0} possible capped molecules'.format(len(capping_schemes)))
-
-        possible_capped_molecules = sorted(
-            filter(
-                lambda mol: mol is not None,
-                [
-                    self.capped_molecule_with(capping_strategies, atoms_need_capping, debug=debug, debug_line='molecule {0}/{1}'.format(i, len(capping_schemes)), use_ILP=use_ILP)
-                    for (i, capping_strategies) in enumerate(capping_schemes, start=1)
-                ],
-            ),
-            key=lambda mol: (mol.net_abs_charges(), mol.n_atoms(), mol.double_bonds_fitness()),
-        )
-
-        write_to_debug(debug, 'Possible capped molecules: {0} ({1}/{2})'.format(
-            [(mol.formula(charge=True), mol.net_abs_charges(), mol.double_bonds_fitness()) for mol in possible_capped_molecules],
-            len(possible_capped_molecules),
-            len(capping_schemes),
-        ))
-
-        if draw_all_possible_graphs:
-            try:
-                for (i, molecule) in enumerate(possible_capped_molecules):
-                    molecule.write_graph(i)
-            except Exception as e:
-                print(
-                    'ERROR: Could not plot graphs (error was: {0})'.format(
-                        str(e),
-                    ),
+        counter_charges = {}
+        fragment_switches = {}
+        capping_atoms_for = {}
+        for uncapped_atom in atoms_need_capping:
+            for (i, capping_strategy) in enumerate(possible_capping_strategies_for_atom(uncapped_atom)):
+                # Add switch variable
+                fragment_switches[uncapped_atom.index, i] = LpVariable(
+                    'F_{i},{j}'.format(i=uncapped_atom.index, j=i),
+                    0,
+                    1,
+                    LpBinary,
                 )
-                raise
 
-        if len(possible_capped_molecules) == 0:
-            raise Not_Capped_Error(self)
+                new_atoms, new_bonds = self.extend_molecule_with(uncapped_atom, capping_strategy)
+                capping_atoms_for[uncapped_atom.index, i] = new_atoms
 
-        best_molecule = possible_capped_molecules[0]
-        return best_molecule
+                for capping_atom in new_atoms:
+                    # Add counter-charge variable S_ij for every atom of the capping strategy
+                    counter_charges[uncapped_atom.index, capping_atom.index] = LpVariable(
+                        "S_{i}{j}".format(i=uncapped_atom.index, j=capping_atom.index), #FIXME
+                        -MAX_ABSOLUTE_CHARGE,
+                        MAX_ABSOLUTE_CHARGE,
+                        LpInteger,
+                    )
+                    problem += counter_charges[uncapped_atom.index, capping_atom.index] <= (1 - fragment_switches[uncapped_atom.index, i]) * MAX_ABSOLUTE_CHARGE
+                    problem += counter_charges[uncapped_atom.index, capping_atom.index] >= -(1 - fragment_switches[uncapped_atom.index, i]) * MAX_ABSOLUTE_CHARGE
+
+            # Only choose one capping strategy at a time
+            problem += sum(F_i for ((atom_id, _), F_i) in fragment_switches.items() if atom_id == uncapped_atom.index) == 1
+
+        charges = {
+            atom.index: LpVariable("C_{i}".format(i=atom.index), -MAX_ABSOLUTE_CHARGE, MAX_ABSOLUTE_CHARGE, LpInteger)
+            for atom in self.atoms.values()
+        }
+
+        # Extra variable use to bind charges
+        absolute_charges = {
+            atom_id: LpVariable("Z_{i}".format(i=atom_id), MIN_ABSOLUTE_CHARGE, MAX_ABSOLUTE_CHARGE, LpInteger)
+            for atom_id in charges.keys()
+        }
+
+        non_bonded_pairs = {
+            atom_id: LpVariable("N_{i}".format(i=atom_id), 0, (18 / 2) if can_atom_have_lone_pairs(atom) else 0, LpInteger)
+            for (atom_id, atom) in self.atoms.items()
+        }
+
+        # Maps a bond to an integer
+        bond_mapping = {
+            bond: i
+            for (i, bond) in enumerate(self.bonds)
+        }
+
+        # Maps an integer to a bond
+        bond_reverse_mapping = {v: k for (k, v) in bond_mapping.items()}
+
+        bond_orders = {
+            bond: LpVariable("B_{i}".format(i=bond_mapping[bond]), MIN_BOND_ORDER, MAX_BOND_ORDER, LpInteger)
+            for bond in self.bonds
+        }
+
+        OBJECTIVES = [
+            sum(absolute_charges.values()),
+            sum([charge * ELECTRONEGATIVITIES[self.atoms[atom_id].element] for (atom_id, charge) in charges.items()]),
+            sum([bond_order * ELECTRONEGATIVITIES[self.atoms[atom_id].element] for (bond, bond_order) in bond_orders.items() for atom_id in bond]),
+        ]
+
+        for atom in self.atoms.values():
+            problem += charges[atom.index] == VALENCE_ELECTRONS[atom.element] - sum([bond_orders[bond] for bond in self.bonds if atom.index in bond]) - 2 * non_bonded_pairs[atom.index], '{element}_{index}'.format(element=atom.element, index=atom.index)
+
+        # Deal with absolute values
+        for atom in self.atoms.values():
+            problem += charges[atom.index] <= absolute_charges[atom.index], 'Absolute charge contraint 1 {i}'.format(i=atom.index)
+            problem += -charges[atom.index] <= absolute_charges[atom.index], 'Absolute charge contraint 2 {i}'.format(i=atom.index)
+
+        problem.sequentialSolve(OBJECTIVES)
+
+        self.charges, self.bond_orders, self.lone_pairs = {}, {}, {}
+        for v in problem.variables():
+            variable_type, variable_substr = v.name.split('_')
+            if variable_type == 'C':
+                atom_index = int(variable_substr)
+                self.charges[atom_index] = MUST_BE_INT(v.varValue)
+            elif variable_type == 'B':
+                bond_index = int(variable_substr)
+                self.bond_orders[bond_reverse_mapping[bond_index]] = MUST_BE_INT(v.varValue)
+                pass
+            elif variable_type == 'Z':
+                pass
+            elif variable_type == 'N':
+                atom_index = int(variable_substr)
+                self.lone_pairs[atom_index] = MUST_BE_INT(v.varValue)
+            elif variable_type == 'F':
+                uncapped_atom_id, capping_strategy_id = map(int, variable_substr.split(','))
+                if False:
+                    self.remove_atoms(atom for atom in capping_atoms_for[uncapped_atom_id, capping_strategy_id])
+            elif variable_type == 'S':
+                pass
+            else:
+                raise Exception('Unknown variable type: {0}'.format(variable_type))
+
+        return self
 
     def get_best_capped_molecule(self, draw_all_possible_graphs: bool = DRAW_ALL_POSSIBLE_GRAPHS, debug: Optional[TextIO] = None, use_ILP: bool = True):
         capping_options = get_capping_options(self.use_neighbour_valences)
@@ -757,9 +827,6 @@ class Molecule:
 
         problem = LpProblem("Lewis problem (bond order and charge assignment) for molecule {0}".format(self.name), LpMinimize)
 
-        MIN_ABSOLUTE_CHARGE, MAX_ABSOLUTE_CHARGE = 0, 9
-        MIN_BOND_ORDER, MAX_BOND_ORDER = 1, 3
-
         charges = {
             atom.index: LpVariable("C_{i}".format(i=atom.index), -MAX_ABSOLUTE_CHARGE, MAX_ABSOLUTE_CHARGE, LpInteger)
             for atom in self.atoms.values()
@@ -770,12 +837,6 @@ class Molecule:
             atom_id: LpVariable("Z_{i}".format(i=atom_id), MIN_ABSOLUTE_CHARGE, MAX_ABSOLUTE_CHARGE, LpInteger)
             for atom_id in charges.keys()
         }
-
-        def can_atom_have_lone_pairs(atom: Atom) -> Atom:
-            if atom.element in {'C'}:
-                return False
-            else:
-                return True
 
         non_bonded_pairs = {
             atom_id: LpVariable("N_{i}".format(i=atom_id), 0, (18 / 2) if can_atom_have_lone_pairs(atom) else 0, LpInteger)
@@ -802,27 +863,6 @@ class Molecule:
             sum([bond_order * ELECTRONEGATIVITIES[self.atoms[atom_id].element] for (bond, bond_order) in bond_orders.items() for atom_id in bond]),
         ]
 
-        VALENCE_ELECTRONS = {
-            'H': 1,
-            'HE': 2,
-            'LI': 1,
-            'BE': 2,
-            'B': 3,
-            'C': 4,
-            'N': 5,
-            'O': 6,
-            'F': 7,
-            'NE': 8,
-            'NA': 1,
-            'MG': 2,
-            'AL': 3,
-            'SI': 4,
-            'P': 5,
-            'S': 6,
-            'CL': 7,
-            'AR': 8,
-        }
-
         for atom in self.atoms.values():
             problem += charges[atom.index] == VALENCE_ELECTRONS[atom.element] - sum([bond_orders[bond] for bond in self.bonds if atom.index in bond]) - 2 * non_bonded_pairs[atom.index], '{element}_{index}'.format(element=atom.element, index=atom.index)
 
@@ -834,20 +874,21 @@ class Molecule:
         problem.sequentialSolve(OBJECTIVES)
 
         self.charges, self.bond_orders, self.lone_pairs = {}, {}, {}
-        must_be_int = lambda x: round(x)
 
         for v in problem.variables():
-            variable_type, atom_or_bond_index_str = v.name.split('_')
-            atom_or_bond_index = int(atom_or_bond_index_str)
+            variable_type, variable_substr = v.name.split('_')
             if variable_type == 'C':
-                self.charges[atom_or_bond_index] = must_be_int(v.varValue)
+                atom_index = int(variable_substr)
+                self.charges[atom_index] = MUST_BE_INT(v.varValue)
             elif variable_type == 'B':
-                self.bond_orders[bond_reverse_mapping[atom_or_bond_index]] = must_be_int(v.varValue)
+                bond_index = int(variable_substr)
+                self.bond_orders[bond_reverse_mapping[bond_index]] = MUST_BE_INT(v.varValue)
                 pass
             elif variable_type == 'Z':
                 pass
             elif variable_type == 'N':
-                self.lone_pairs[atom_or_bond_index] = must_be_int(v.varValue)
+                atom_index = int(variable_substr)
+                self.lone_pairs[atom_index] = MUST_BE_INT(v.varValue)
             else:
                 raise Exception('Unknown variable type: {0}'.format(variable_type))
         write_to_debug(debug, 'molecule_name', self.name)
@@ -865,7 +906,7 @@ def validated_atoms_dict(atoms: Dict[int, Atom]) -> Dict[int, Atom]:
 
     return atoms
 
-def validate_bond_dict(atoms: Dict[int, Atom], bonds: Set[FrozenSet[int]]) -> None:
+def validate_bond_dict(atoms: Dict[int, Atom], bonds: Set[Bond]) -> None:
     all_bond_indices = reduce(
         lambda acc, e: acc | e,
         bonds,

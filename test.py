@@ -15,10 +15,10 @@ def example_1() -> None:
         name='example_1',
     )
 
-    uncapped_molecule.write_graph('uncapped_molecule')
+    #uncapped_molecule.write_graph('uncapped_molecule')
 
     for use_ILP in (True, False):
-        capped_molecule = uncapped_molecule.get_best_capped_molecule(debug=None, use_ILP=use_ILP)
+        capped_molecule = uncapped_molecule.get_best_capped_molecule_with_ILP(debug=None)
         capped_molecule.write_graph('capped_molecule_with_{0}'.format('ILP' if use_ILP else 'bruteforce'))
         print(capped_molecule.dummy_pdb())
 

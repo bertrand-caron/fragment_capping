@@ -25,6 +25,38 @@ FULL_VALENCES = {
     'SI': {4},
 }
 
+VALENCE_ELECTRONS = {
+    'H': 1,
+    'HE': 2,
+    'LI': 1,
+    'BE': 2,
+    'B': 3,
+    'C': 4,
+    'N': 5,
+    'O': 6,
+    'F': 7,
+    'NE': 8,
+    'NA': 1,
+    'MG': 2,
+    'AL': 3,
+    'SI': 4,
+    'P': 5,
+    'S': 6,
+    'CL': 7,
+    'AR': 8,
+}
+
+def can_atom_have_lone_pairs(atom: Atom) -> Atom:
+    if atom.element in {'C'}:
+        return False
+    else:
+        return True
+
+MIN_ABSOLUTE_CHARGE, MAX_ABSOLUTE_CHARGE = 0, 9
+MIN_BOND_ORDER, MAX_BOND_ORDER = 1, 3
+
+MUST_BE_INT = lambda x: round(x)
+
 POSSIBLE_BOND_ORDERS = {
     'S': {1, 2},
     'SE': {1, 2},
