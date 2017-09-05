@@ -244,13 +244,14 @@ class Molecule:
             ],
         )
 
-        from pulp import LpProblem, LpMinimize, LpInteger, LpVariable, LpBinary
+        from pulp import LpProblem, LpMinimize, LpInteger, LpVariable, LpBinary, LpStatus
 
         problem = LpProblem("Capping problem for molecule {0}".format(self.name), LpMinimize)
 
         counter_charges = {}
         fragment_switches = {}
         capping_atoms_for = {}
+        new_bonds_sets = {}
         for uncapped_atom in atoms_need_capping:
             for (i, capping_strategy) in enumerate(possible_capping_strategies_for_atom(uncapped_atom)):
                 # Add switch variable
@@ -263,17 +264,18 @@ class Molecule:
 
                 new_atoms, new_bonds = self.extend_molecule_with(uncapped_atom, capping_strategy)
                 capping_atoms_for[uncapped_atom.index, i] = new_atoms
+                new_bonds_sets[uncapped_atom.index, i] = [bond for bond in new_bonds if uncapped_atom.index in bond]
 
                 for capping_atom in new_atoms:
                     # Add counter-charge variable S_ij for every atom of the capping strategy
-                    counter_charges[uncapped_atom.index, capping_atom.index] = LpVariable(
-                        "S_{i}{j}".format(i=uncapped_atom.index, j=capping_atom.index), #FIXME
+                    counter_charges[capping_atom.index] = LpVariable(
+                        "S_{i},{j}".format(i=uncapped_atom.index, j=capping_atom.index), #FIXME
                         -MAX_ABSOLUTE_CHARGE,
                         MAX_ABSOLUTE_CHARGE,
                         LpInteger,
                     )
-                    problem += counter_charges[uncapped_atom.index, capping_atom.index] <= (1 - fragment_switches[uncapped_atom.index, i]) * MAX_ABSOLUTE_CHARGE
-                    problem += counter_charges[uncapped_atom.index, capping_atom.index] >= -(1 - fragment_switches[uncapped_atom.index, i]) * MAX_ABSOLUTE_CHARGE
+                    problem += counter_charges[capping_atom.index] <= (1 - fragment_switches[uncapped_atom.index, i]) * MAX_ABSOLUTE_CHARGE
+                    problem += counter_charges[capping_atom.index] >= -(1 - fragment_switches[uncapped_atom.index, i]) * MAX_ABSOLUTE_CHARGE
 
             # Only choose one capping strategy at a time
             problem += sum(F_i for ((atom_id, _), F_i) in fragment_switches.items() if atom_id == uncapped_atom.index) == 1
@@ -304,29 +306,56 @@ class Molecule:
         bond_reverse_mapping = {v: k for (k, v) in bond_mapping.items()}
 
         bond_orders = {
-            bond: LpVariable("B_{i}".format(i=bond_mapping[bond]), MIN_BOND_ORDER, MAX_BOND_ORDER, LpInteger)
+            bond: LpVariable(
+                "B_{i}".format(i=bond_mapping[bond]),
+                0 if any(bond in new_bonds for new_bonds in new_bonds_sets.values()) else MIN_BOND_ORDER,
+                MAX_BOND_ORDER,
+                LpInteger,
+            )
             for bond in self.bonds
         }
 
+        for ((uncapped_atom_id, i), new_bonds) in new_bonds_sets.items():
+            for new_bond in new_bonds:
+                problem += bond_orders[new_bond] <= fragment_switches[uncapped_atom_id, i] * MAX_BOND_ORDER
+                problem += bond_orders[new_bond] >= fragment_switches[uncapped_atom_id, i]
+
         OBJECTIVES = [
             sum(absolute_charges.values()),
+            sum([F_i * len(capping_atoms_for[uncapped_atom_id, i]) for ((uncapped_atom_id, i), F_i) in fragment_switches.items()]),
             sum([charge * ELECTRONEGATIVITIES[self.atoms[atom_id].element] for (atom_id, charge) in charges.items()]),
             sum([bond_order * ELECTRONEGATIVITIES[self.atoms[atom_id].element] for (bond, bond_order) in bond_orders.items() for atom_id in bond]),
         ]
 
         for atom in self.atoms.values():
-            problem += charges[atom.index] == VALENCE_ELECTRONS[atom.element] - sum([bond_orders[bond] for bond in self.bonds if atom.index in bond]) - 2 * non_bonded_pairs[atom.index], '{element}_{index}'.format(element=atom.element, index=atom.index)
+            problem += (
+                charges[atom.index]
+                ==
+                VALENCE_ELECTRONS[atom.element]
+                -
+                sum([bond_orders[bond] for bond in self.bonds if atom.index in bond])
+                -
+                2 * non_bonded_pairs[atom.index]
+                -
+                (counter_charges[atom.index] if atom.index in counter_charges else 0)
+                ,
+                '{element}_{index}'.format(element=atom.element, index=atom.index),
+            )
 
         # Deal with absolute values
         for atom in self.atoms.values():
             problem += charges[atom.index] <= absolute_charges[atom.index], 'Absolute charge contraint 1 {i}'.format(i=atom.index)
             problem += -charges[atom.index] <= absolute_charges[atom.index], 'Absolute charge contraint 2 {i}'.format(i=atom.index)
 
+        if False:
+            problem.writeLP('test.lp')
         problem.sequentialSolve(OBJECTIVES)
+        assert problem.status == 1, (self.name, LpStatus[problem.status])
 
         self.charges, self.bond_orders, self.lone_pairs = {}, {}, {}
         for v in problem.variables():
             variable_type, variable_substr = v.name.split('_')
+            print(v.name, v.varValue)
             if variable_type == 'C':
                 atom_index = int(variable_substr)
                 self.charges[atom_index] = MUST_BE_INT(v.varValue)
