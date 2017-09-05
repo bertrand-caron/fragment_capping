@@ -694,9 +694,11 @@ class Molecule:
             for bond in self.bonds
         }
 
-        max_electronegativity_score = sum(MAX_ABSOLUTE_CHARGE * ELECTRONEGATIVITIES[self.atoms[atom_id].element] for (atom_id, atom) in charges.items())
-
-        problem += sum(absolute_charges.values()) + (1 / max_electronegativity_score) * sum([charge * ELECTRONEGATIVITIES[self.atoms[atom_id].element] for (atom_id, charge) in charges.items()]), 'Minimise total sum of absolute charges'
+        OBJECTIVES = [
+            sum(absolute_charges.values()),
+            #sum([charge * ELECTRONEGATIVITIES[self.atoms[atom_id].element] for (atom_id, charge) in charges.items()]),
+            #sum([bond_orders[] * ELECTRONEGATIVITIES[self.atoms[atom_id].element] for (atom_id, charge) in charges.items()]),
+        ]
 
         VALENCE_ELECTRONS = {
             'H': 1,
@@ -728,7 +730,7 @@ class Molecule:
             problem += -charges[atom.index] <= absolute_charges[atom.index], 'Absolute charge contraint 2 {i}'.format(i=atom.index)
 
         problem.writeLP("lewis_{0}.lp".format(self.name))
-        problem.solve()
+        problem.sequentialSolve(OBJECTIVES)
 
         self.charges, self.bond_orders, self.lone_pairs = {}, {}, {}
         must_be_int = lambda x: round(x)
