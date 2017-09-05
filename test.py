@@ -118,6 +118,28 @@ def example_6() -> None:
         capped_molecule.write_graph('capped_molecule_with_{0}'.format('ILP' if use_ILP else 'bruteforce'))
         print(capped_molecule.dummy_pdb())
 
+def example_7() -> None:
+    uncapped_molecule = Molecule(
+        {
+            1: Atom(index=1, element='C', valence=4, capped=False, coordinates=None),
+            2: Atom(index=2, element='O', valence=2, capped=True, coordinates=None),
+            3: Atom(index=3, element='O', valence=1, capped=True, coordinates=None),
+            4: Atom(index=4, element='H', valence=1, capped=True, coordinates=None),
+        },
+        [
+            (1, 2),
+            (1, 3),
+            (2, 4),
+        ],
+        name='example_7',
+    )
+
+    uncapped_molecule.write_graph('uncapped_molecule')
+    for use_ILP in (True, False):
+        capped_molecule = uncapped_molecule.get_best_capped_molecule(debug=None, use_ILP=use_ILP)
+        capped_molecule.write_graph('capped_molecule_with_{0}'.format('ILP' if use_ILP else 'bruteforce'))
+        print(capped_molecule.dummy_pdb())
+
 # Source: https://doi.org/10.1016/j.jmgm.2005.12.005
 
 def example_wang_1() -> None:
@@ -519,6 +541,7 @@ ALL_EXAMPLES = [
     example_4,
     example_5,
     example_6,
+    example_7,
     example_wang_1,
     example_wang_2,
     example_wang_3,

@@ -697,7 +697,7 @@ class Molecule:
         OBJECTIVES = [
             sum(absolute_charges.values()),
             sum([charge * ELECTRONEGATIVITIES[self.atoms[atom_id].element] for (atom_id, charge) in charges.items()]),
-            #sum([bond_orders[] * ELECTRONEGATIVITIES[self.atoms[atom_id].element] for (atom_id, charge) in charges.items()]),
+            sum([bond_order * ELECTRONEGATIVITIES[self.atoms[atom_id].element] for (bond, bond_order) in bond_orders.items() for atom_id in bond]),
         ]
 
         VALENCE_ELECTRONS = {
