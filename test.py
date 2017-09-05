@@ -15,7 +15,7 @@ def example_1() -> None:
         name='example_1',
     )
 
-    #uncapped_molecule.write_graph('uncapped_molecule')
+    uncapped_molecule.write_graph('uncapped_molecule')
 
     for use_ILP in (True, False):
         capped_molecule = uncapped_molecule.get_best_capped_molecule_with_ILP(debug=None)

@@ -93,7 +93,7 @@ class Molecule:
         self.bonds = [bond for bond in self.bonds if atom.index not in bond]
 
     def remove_atoms(self, atoms: List[Atom]) -> None:
-        [remove_atom(atom) for atom in atoms]
+        [self.remove_atom(atom) for atom in atoms]
 
     def add_bond(self, bond: Tuple[int, int]) -> None:
         self.bonds.add(frozenset(bond))
@@ -341,7 +341,7 @@ class Molecule:
                 self.lone_pairs[atom_index] = MUST_BE_INT(v.varValue)
             elif variable_type == 'F':
                 uncapped_atom_id, capping_strategy_id = map(int, variable_substr.split(','))
-                if False:
+                if MUST_BE_INT(v.varValue) == 0:
                     self.remove_atoms(atom for atom in capping_atoms_for[uncapped_atom_id, capping_strategy_id])
             elif variable_type == 'S':
                 pass
