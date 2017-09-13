@@ -1,4 +1,4 @@
-from typing import Any, Optional, List, Tuple, Dict, Union, Set, Sequence, TextIO
+from typing import Any, Optional, List, Tuple, Dict, Union, Set, Sequence, TextIO, FrozenSet
 from copy import deepcopy
 from operator import itemgetter
 from itertools import groupby, product
@@ -949,3 +949,37 @@ def validate_bond_dict(atoms: Dict[int, Atom], bonds: Set[Bond]) -> None:
 
     if all_bond_indices - all_atom_indices != set():
         raise AssertionError('The following atoms indices in the bonds reference non-existing atoms: {0}'.format(all_bond_indices - all_atom_indices))
+
+def bonds_for_pdb_line(pdb_line: str) -> List[FrozenSet[int]]:
+    atom_index, *other_atom_indices = map(int, pdb_line.split()[1:])
+    return [
+        frozenset((atom_index, other_atom_index))
+        for other_atom_index in other_atom_indices
+    ]
+
+def molecule_from_pdb_str(pdb_str: str) -> Molecule:
+    from chemistry_helpers.pdb import pdb_atoms_in, is_pdb_connect_line
+
+    bonds = reduce(
+        lambda acc, e: acc + e,
+        [
+            bonds_for_pdb_line(line)
+            for line in pdb_str.splitlines()
+            if is_pdb_connect_line
+        ],
+        [],
+    )
+
+    return Molecule(
+        {
+            atom.index: Atom(
+                index=atom.index,
+                element=atom.element,
+                valence=len([1 for bond in bonds if atom.index in bond]),
+                capped=True,
+                coordinates=atom.coordinates,
+            )
+            for atom in pdb_atoms_in(pdb_str)
+        },
+        bonds,
+    )
