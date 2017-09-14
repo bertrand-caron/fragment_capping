@@ -51,6 +51,7 @@ class Molecule:
 
         self.bond_orders, self.charges = None, None
         self.previously_uncapped = set()
+        self.aromatic_bonds = None
 
     def atom_desc(self, atom: Atom):
         if self.use_neighbour_valences:
@@ -583,6 +584,54 @@ class Molecule:
 
         return io.getvalue()
 
+    def mol2(self) -> str:
+        from chemistry_helpers.pdb import PDB_TEMPLATE, pdb_conect_line
+        io = StringIO()
+
+        def print_to_io(*args):
+            print(*args, file=io)
+
+        print_to_io('@<TRIPOS>MOLECULE')
+        print_to_io(self.name)
+        print_to_io(
+            '{num_atoms} {num_bonds}'.format(
+                num_atoms=len(self.atoms),
+                num_bonds=len(self.bonds)
+            ),
+        )
+        print_to_io('SMALL')
+        print_to_io('USER_CHARGES')
+
+        print_to_io('@<TRIPOS>ATOM')
+        for atom in self.sorted_atoms():
+            print_to_io(
+                '{index} {name} {coordinates} {sibyl_atom_type} {subst_id} {subst_name} {charge}'.format(
+                    index=atom.index,
+                    name='A' + str(atom.index),
+                    coordinates=' '.join(map(str, atom.coordinates)),
+                    sibyl_atom_type='{element}.{valence}'.format(
+                        element=atom.element,
+                        valence=atom.valence - 1,
+                    ) if atom.element not in {'H'} else atom.element,
+                    subst_id=1,
+                    subst_name='<1>',
+                    charge=float(self.charges[atom.index]),
+                ),
+            )
+
+        assert self.aromatic_bonds is not None, 'Aromatic bonds were not assigned. Use Molecule.assign_aromatic_bonds()'
+        print_to_io('@<TRIPOS>BOND')
+        for (bond_id, bond) in enumerate(self.bonds):
+            print_to_io(
+                '{0} {1} {2} {3}'.format(
+                    bond_id,
+                    *list(bond),
+                    self.bond_orders[bond] if bond not in self.aromatic_bonds else 'ar',
+                ),
+            )
+
+        return io.getvalue()
+
     def representation(self, out_format: str) -> str:
         assert out_format in ('smiles', 'inchi'), 'Wrong representation format: {0}'.format(out_format)
 
@@ -717,6 +766,7 @@ class Molecule:
             bond: bond_order
             for (bond, bond_order) in best_bond_orders
         }
+        self.assign_aromatic_bonds()
 
     def netcharge(self) -> int:
         try:
@@ -924,6 +974,51 @@ class Molecule:
         write_to_debug(debug, 'bond_orders:', self.bond_orders)
         write_to_debug(debug, 'charges', self.charges)
         write_to_debug(debug, 'lone_pairs', self.lone_pairs)
+        self.assign_aromatic_bonds()
+
+    def assign_aromatic_bonds(self):
+        from networkx import Graph, cycle_basis
+
+        graph = Graph()
+        graph.add_nodes_from([atom.index for atom in self.sorted_atoms()])
+        graph.add_edges_from([tuple(bond) for bond in self.bonds])
+
+        rings = list(map(tuple, cycle_basis(graph)))
+
+        def bonds_for_ring(ring: List[ATOM_INDEX]) -> List[Bond]:
+            return [
+                frozenset(atom_indices)
+                for atom_indices in zip(ring, ring[1:] + (ring[0],))
+            ]
+
+        bonds_for_rings = {
+            ring: bonds_for_ring(ring)
+            for ring in rings
+        }
+
+        bond_orders_for_rings = {
+            ring: [self.bond_orders[bond] for bond in bonds]
+            for (ring, bonds) in bonds_for_rings.items()
+        }
+
+        def is_hucklel_compatible(bond_orders: List[int]):
+            return (sum([2 for bond_order in bond_orders if bond_order == 2]) - 2) % 4 == 0
+
+        def is_bond_sequence_aromatic(bond_orders: List[int]) -> bool:
+            cyclic_bond_orders = [bond_orders[-1]] + list(bond_orders) + [bond_orders[0]]
+            for pair_of_bond_orders in zip(cyclic_bond_orders, [cyclic_bond_orders[-1]] + cyclic_bond_orders[:-1]):
+                if set(pair_of_bond_orders) == {1, 2}:
+                    continue
+                else:
+                    return False
+            else:
+                return is_hucklel_compatible(bond_orders)
+
+        self.aromatic_bonds = set()
+        for ring in rings:
+            if is_bond_sequence_aromatic(bond_orders_for_rings[ring]):
+                for bond in bonds_for_rings[ring]:
+                    self.aromatic_bonds.add(bond)
 
 Uncapped_Molecule = Molecule
 
@@ -952,22 +1047,22 @@ def validate_bond_dict(atoms: Dict[int, Atom], bonds: Set[Bond]) -> None:
 
 def bonds_for_pdb_line(pdb_line: str) -> List[FrozenSet[int]]:
     atom_index, *other_atom_indices = map(int, pdb_line.split()[1:])
-    return [
+    return {
         frozenset((atom_index, other_atom_index))
         for other_atom_index in other_atom_indices
-    ]
+    }
 
 def molecule_from_pdb_str(pdb_str: str) -> Molecule:
     from chemistry_helpers.pdb import pdb_atoms_in, is_pdb_connect_line
 
     bonds = reduce(
-        lambda acc, e: acc + e,
+        lambda acc, e: acc | e,
         [
             bonds_for_pdb_line(line)
             for line in pdb_str.splitlines()
-            if is_pdb_connect_line
+            if is_pdb_connect_line(line)
         ],
-        [],
+        set(),
     )
 
     return Molecule(
