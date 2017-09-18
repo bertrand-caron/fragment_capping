@@ -1020,6 +1020,90 @@ class Molecule:
                 for bond in bonds_for_rings[ring]:
                     self.aromatic_bonds.add(bond)
 
+    def renumber_atoms(self) -> None:
+        atom_mapping = {
+            atom_index: i
+            for (i, atom_index) in enumerate(self.atoms.keys(), start=1)
+        }
+
+        remap_atom = lambda atom_index: atom_mapping[atom_index]
+        remap_bond = lambda bond: frozenset(map(remap_atom, bond))
+
+        self.atoms = {
+            remap_atom(atom.index): atom._replace(index=remap_atom(atom.index))
+            for atom in self.atoms.values()
+        }
+        self.previously_uncapped = {
+            remap_atom(atom_index)
+            for atom_index in self.previously_uncapped
+        }
+
+        self.bonds = {
+            remap_bond(bond)
+            for bond in self.bonds
+        }
+        self.charges = {
+            remap_atom(atom_index): charge
+            for (atom_index, charge) in self.charges.items()
+        }
+        self.bond_orders = {
+            remap_bond(bond): bond_order
+            for (bond, bond_order) in self.bond_orders.items()
+        }
+        self.aromatic_bonds = {
+            remap_bond(bond)
+            for bond in self.aromatic_bonds
+        }
+        return None
+
+    def remove_united_hydrogens(self) -> None:
+        first_neighbours_ids = {
+            atom.index: reduce(
+                lambda acc, e: acc | e,
+                [bond for bond in self.bonds if atom.index in bond],
+                frozenset(),
+            ) - {atom.index}
+            for atom in self.atoms.values()
+        }
+
+        deleted_atom_ids = {
+            atom.index
+            for atom in self.atoms.values()
+            if atom.element == 'H' and atom.valence == 1 and {self.atoms[neighbour_index].element for neighbour_index in first_neighbours_ids[atom.index]} == {'C'}
+        }
+
+        self.atoms = {
+            atom.index: atom
+            for atom in self.atoms.values()
+            if atom.index not in deleted_atom_ids
+        }
+
+        self.bonds = {
+            bond
+            for bond in self.bonds
+            if bond & deleted_atom_ids == set()
+        }
+
+        self.charges = {
+            atom_index: charge
+            for (atom_index, charge) in self.charges.items()
+            if atom_index not in deleted_atom_ids
+        }
+
+        self.bond_orders = {
+            bond: bond_order
+            for (bond, bond_order) in self.bond_orders.items()
+            if bond in self.bonds
+        }
+
+        self.aromatic_bonds = {
+            bond
+            for bond in self.aromatic_bonds
+            if bond in self.bonds
+        }
+
+        return self.renumber_atoms()
+
 Uncapped_Molecule = Molecule
 
 def validated_atoms_dict(atoms: Dict[int, Atom]) -> Dict[int, Atom]:
@@ -1078,3 +1162,47 @@ def molecule_from_pdb_str(pdb_str: str) -> Molecule:
         },
         bonds,
     )
+if __name__ == '__main__':
+    A = '''HEADER    UNCLASSIFIED                            10-Sep-17
+    TITLE     ALL ATOM STRUCTURE FOR MOLECULE UNK                                   
+    AUTHOR    GROMOS AUTOMATIC TOPOLOGY BUILDER REVISION 2017-07-03 14:53:07
+    AUTHOR   2  http://compbio.biosci.uq.edu.au/atb
+    HETATM    1   H9 G223    0       3.249   0.792  -0.673  1.00  0.00           H
+    HETATM    2   C7 G223    0       2.882   0.023   0.017  1.00  0.00           C
+    HETATM    3   H7 G223    0       3.252   0.283   1.017  1.00  0.00           H
+    HETATM    4   H8 G223    0       3.319  -0.940  -0.264  1.00  0.00           H
+    HETATM    5   C4 G223    0       1.373  -0.026   0.001  1.00  0.00           C
+    HETATM    6   N1 G223    0       0.725   1.151   0.064  1.00  0.00           N
+    HETATM    7   C3 G223    0      -0.615   1.138   0.067  1.00  0.00           C
+    HETATM    8   H4 G223    0      -1.098   2.114   0.119  1.00  0.00           H
+    HETATM    9   C2 G223    0      -1.404  -0.016   0.006  1.00  0.00           C
+    HETATM   10   C1 G223    0      -2.911   0.059  -0.003  1.00  0.00           C
+    HETATM   11   H1 G223    0      -3.319  -0.237  -0.978  1.00  0.00           H
+    HETATM   12   H2 G223    0      -3.350  -0.611   0.746  1.00  0.00           H
+    HETATM   13   H3 G223    0      -3.259   1.075   0.208  1.00  0.00           H
+    HETATM   14   C6 G223    0      -0.716  -1.234  -0.056  1.00  0.00           C
+    HETATM   15   H6 G223    0      -1.266  -2.171  -0.103  1.00  0.00           H
+    HETATM   16   C5 G223    0       0.677  -1.241  -0.059  1.00  0.00           C
+    HETATM   17   H5 G223    0       1.223  -2.179  -0.107  1.00  0.00           H
+    CONECT    1    2
+    CONECT    2    1    3    4    5
+    CONECT    3    2
+    CONECT    4    2
+    CONECT    5    2    6   16
+    CONECT    6    5    7
+    CONECT    7    6    8    9
+    CONECT    8    7
+    CONECT    9    7   10   14
+    CONECT   10    9   11   12   13
+    CONECT   11   10
+    CONECT   12   10
+    CONECT   13   10
+    CONECT   14    9   15   16
+    CONECT   15   14
+    CONECT   16    5   14   17
+    CONECT   17   16
+    END'''
+    molecule = molecule_from_pdb_str(A)
+    molecule.assign_bond_orders_and_charges_with_ILP()
+    print(molecule.charges, molecule.lone_pairs, molecule.bond_orders)
+    print(molecule.mol2())
