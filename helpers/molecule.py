@@ -591,6 +591,21 @@ class Molecule:
         def print_to_io(*args):
             print(*args, file=io)
 
+        def sibyl_atom_type(atom: Atom) -> str:
+            if atom.element in {'C', 'N', 'O', 'S', 'P'}:
+                if atom.element == 'C':
+                    valence = atom.valence - 1
+                elif atom.element == 'O':
+                    valence = atom.valence + 1
+                else:
+                    valence = atom.valence
+                return '{element}.{valence}'.format(
+                    element=atom.element,
+                    valence=valence,
+                )
+            else:
+                return atom.element
+
         print_to_io('@<TRIPOS>MOLECULE')
         print_to_io(self.name)
         print_to_io(
@@ -609,10 +624,7 @@ class Molecule:
                     index=atom.index,
                     name='A' + str(atom.index),
                     coordinates=' '.join(map(str, atom.coordinates)),
-                    sibyl_atom_type='{element}.{valence}'.format(
-                        element=atom.element,
-                        valence=atom.valence - 1,
-                    ) if atom.element not in {'H'} else atom.element,
+                    sibyl_atom_type=sibyl_atom_type(atom),
                     subst_id=1,
                     subst_name='<1>',
                     charge=float(self.charges[atom.index]),
