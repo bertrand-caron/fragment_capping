@@ -37,11 +37,26 @@ def write_to_debug(debug: Optional[TextIO], *objects: Sequence[Any]) -> None:
         debug.write(' '.join(map(str, objects)) + '\n')
 
 class Molecule:
-    def __init__(self, atoms: Dict[ATOM_INDEX, Atom], bonds: List[Tuple[int, int]], name: Optional[str] = None, **kwargs: Dict[str, Any]) -> None:
-        self.atoms = validated_atoms_dict(atoms)
+    def __init__(
+        self,
+        atoms: Union[Dict[ATOM_INDEX, Atom], Sequence[Atom]],
+        bonds: List[Tuple[int, int]],
+        name: Optional[str] = None,
+        **kwargs: Dict[str, Any]
+    ) -> None:
+        if type(atoms) in (list, set, frozenset):
+            assert all(isinstance(atom, Atom) for atom in atoms), 'Invalid atom types: {0}'.format([type(atom) for atom in atoms])
+            atoms_dict = {atom.index: atom for atom in atoms}
+        elif isinstance(atoms, dict):
+            assert all(isinstance(atom, Atom) for atom in atoms.values()), 'Invalid atom types: {0}'.format([type(atom) for atom in atoms])
+            atoms_dict = atoms
+        else:
+            raise Exception('Invalide type(atoms): {0}'.format(type(atoms)))
+
+        self.atoms = validated_atoms_dict(atoms_dict)
         self.bonds = set(map(frozenset, bonds))
         validate_bond_dict(self.atoms, self.bonds)
-        self.name = name if name is not None else md5((str(sorted(atoms.values())) + str(sorted(bonds))).encode()).hexdigest()
+        self.name = name if name is not None else md5((str(sorted(self.atoms.values())) + str(sorted(bonds))).encode()).hexdigest()
 
         self.use_neighbour_valences = (
             True
