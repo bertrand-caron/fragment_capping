@@ -1104,7 +1104,14 @@ class Molecule:
         deleted_atom_ids = {
             atom.index
             for atom in self.atoms.values()
-            if atom.element == 'H' and atom.valence == 1 and {self.atoms[neighbour_index].element for neighbour_index in first_neighbours_ids[atom.index]} == {'C'}
+            if all(
+                [
+                    atom.element == 'H',
+                    atom.valence == 1,
+                    {self.atoms[neighbour_index].element for neighbour_index in first_neighbours_ids[atom.index]} == {'C'},
+                    {self.charges[neighbour_index] for neighbour_index in first_neighbours_ids[atom.index]} == {0},
+                ]
+            )
         }
 
         self.atoms = {
