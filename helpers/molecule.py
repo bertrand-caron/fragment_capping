@@ -1188,7 +1188,7 @@ def molecule_from_pdb_str(pdb_str: str, **kwargs: Dict[str, Any]) -> Molecule:
         {
             atom.index: Atom(
                 index=atom.index,
-                element=atom.element,
+                element=atom.element.upper(),
                 valence=len([1 for bond in bonds if atom.index in bond]),
                 capped=True,
                 coordinates=atom.coordinates,
