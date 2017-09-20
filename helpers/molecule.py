@@ -42,6 +42,7 @@ class Molecule:
         atoms: Union[Dict[ATOM_INDEX, Atom], Sequence[Atom]],
         bonds: List[Tuple[int, int]],
         name: Optional[str] = None,
+        net_charge: Optional[int] = None,
         **kwargs: Dict[str, Any]
     ) -> None:
         if type(atoms) in (list, set, frozenset):
@@ -57,6 +58,7 @@ class Molecule:
         self.bonds = set(map(frozenset, bonds))
         validate_bond_dict(self.atoms, self.bonds)
         self.name = name if name is not None else md5((str(sorted(self.atoms.values())) + str(sorted(bonds))).encode()).hexdigest()
+        self.net_charge = net_charge
 
         self.use_neighbour_valences = (
             True
@@ -342,6 +344,9 @@ class Molecule:
             sum([charge * ELECTRONEGATIVITIES[self.atoms[atom_id].element] for (atom_id, charge) in charges.items()]),
             sum([bond_order * ELECTRONEGATIVITIES[self.atoms[atom_id].element] for (bond, bond_order) in bond_orders.items() for atom_id in bond]),
         ]
+
+        if self.net_charge is not None:
+            problem += sum(charges.values()) == self.net_charge
 
         for atom in self.atoms.values():
             problem += (
@@ -969,6 +974,9 @@ class Molecule:
             sum([bond_order * ELECTRONEGATIVITIES[self.atoms[atom_id].element] for (bond, bond_order) in bond_orders.items() for atom_id in bond]),
         ]
 
+        if self.net_charge is not None:
+            problem += sum(charges.values()) == self.net_charge
+
         for atom in self.atoms.values():
             problem += charges[atom.index] == VALENCE_ELECTRONS[atom.element] - sum([bond_orders[bond] for bond in self.bonds if atom.index in bond]) - 2 * non_bonded_pairs[atom.index], '{element}_{index}'.format(element=atom.element, index=atom.index)
 
@@ -1163,7 +1171,7 @@ def bonds_for_pdb_line(pdb_line: str) -> List[FrozenSet[int]]:
         for other_atom_index in other_atom_indices
     }
 
-def molecule_from_pdb_str(pdb_str: str) -> Molecule:
+def molecule_from_pdb_str(pdb_str: str, **kwargs: Dict[str, Any]) -> Molecule:
     from chemistry_helpers.pdb import pdb_atoms_in, is_pdb_connect_line
 
     bonds = reduce(
@@ -1188,6 +1196,7 @@ def molecule_from_pdb_str(pdb_str: str) -> Molecule:
             for atom in pdb_atoms_in(pdb_str)
         },
         bonds,
+        **kwargs,
     )
 if __name__ == '__main__':
     A = '''HEADER    UNCLASSIFIED                            10-Sep-17
