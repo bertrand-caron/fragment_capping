@@ -617,6 +617,15 @@ class Molecule:
                     valence = atom.valence - 1
                 elif atom.element == 'O':
                     valence = atom.valence + 1
+                elif atom.element == 'S':
+                    if atom.valence == 3:
+                        valence = 'o'
+                    elif atom.valence == 4:
+                        valence = 'o2'
+                    elif atom.valence == 2:
+                        valence = 3
+                    else:
+                        valence = 2
                 else:
                     valence = atom.valence
                 return '{element}.{valence}'.format(
