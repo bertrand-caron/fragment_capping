@@ -17,6 +17,8 @@ MAXIMUM_PERMUTATION_NUMBER = 600000
 
 DESC = lambda x: -x
 
+MAX, MIN = (lambda x: -x, lambda x: x)
+
 class No_Charges_And_Bond_Orders(Exception):
     pass
 
@@ -1187,8 +1189,8 @@ class Molecule:
         problem = LpProblem("Lewis problem (tautomers) for molecule {0}".format(self.name), LpMinimize)
 
         capping_atom_ids = set()
-        initial_atoms = list(self.atoms.values())
-        for atom in filter(lambda atom: atom.element != 'H', initial_atoms):
+        core_atoms = list(self.atoms.values())
+        for atom in filter(lambda atom: atom.element != 'H', core_atoms):
             # Add up to 3 Hydrogens FIXME: Might use different number of different elements
             for i in range(3):
                 capping_atom_ids.add(
@@ -1201,10 +1203,11 @@ class Molecule:
         charges = {
             atom.index: LpVariable("C_{i}".format(i=atom.index), -MAX_ABSOLUTE_CHARGE, MAX_ABSOLUTE_CHARGE, LpInteger)
             for atom in self.atoms.values()
+            if atom.index not in capping_atom_ids
         }
 
-        counter_charges = {
-            atom.index: LpVariable("S_{i}".format(i=atom.index), -MAX_ABSOLUTE_CHARGE, MAX_ABSOLUTE_CHARGE, LpInteger)
+        keep_cap = {
+            atom.index: LpVariable("K_{i}".format(i=atom.index), 0, 1, LpBinary)
             for atom in self.atoms.values()
             if atom.index in capping_atom_ids
         }
@@ -1216,8 +1219,8 @@ class Molecule:
         }
 
         non_bonded_pairs = {
-            atom_id: LpVariable("N_{i}".format(i=atom_id), 0, (18 / 2) if can_atom_have_lone_pairs(atom) else 0, LpInteger)
-            for (atom_id, atom) in self.atoms.items()
+            atom_id: LpVariable("N_{i}".format(i=atom_id), 0, (18 / 2) if can_atom_have_lone_pairs(self.atoms[atom_id]) else 0, LpInteger)
+            for atom_id in charges.keys()
         }
 
         # Maps a bond to an integer
@@ -1235,29 +1238,29 @@ class Molecule:
         }
 
         OBJECTIVES = [
-            sum(absolute_charges.values()),
-            sum(counter_charges.values()),
-            sum([charge * ELECTRONEGATIVITIES[self.atoms[atom_id].element] for (atom_id, charge) in charges.items()]),
-            sum([bond_order * ELECTRONEGATIVITIES[self.atoms[atom_id].element] for (bond, bond_order) in bond_orders.items() for atom_id in bond]),
+            MIN(sum(absolute_charges.values())),
+            MAX(sum(non_bonded_pairs.values())),
+            MAX(sum(keep_cap.values())),
+            MIN(sum([charge * ELECTRONEGATIVITIES[self.atoms[atom_id].element] for (atom_id, charge) in charges.items()])),
+            MIN(sum([bond_order * ELECTRONEGATIVITIES[self.atoms[atom_id].element] for (bond, bond_order) in bond_orders.items() for atom_id in bond])),
         ]
 
         if self.net_charge is not None:
             problem += sum(charges.values()) == self.net_charge
 
-        for atom in self.atoms.values():
-            problem += charges[atom.index] == VALENCE_ELECTRONS[atom.element] - sum([bond_orders[bond] for bond in self.bonds if atom.index in bond]) - 2 * non_bonded_pairs[atom.index] - (counter_charges[atom.index] if atom.index in counter_charges else 0), '{element}_{index}'.format(element=atom.element, index=atom.index)
+        for atom in map(lambda atom_index: self.atoms[atom_index], charges.keys()):
+            problem += charges[atom.index] == VALENCE_ELECTRONS[atom.element] - sum([bond_orders[bond] for bond in self.bonds if atom.index in bond]) - 2 * non_bonded_pairs[atom.index], '{element}_{index}'.format(element=atom.element, index=atom.index)
 
-        # Deal with absolute values
-        for atom in self.atoms.values():
+            # Deal with absolute values
             problem += charges[atom.index] <= absolute_charges[atom.index], 'Absolute charge contraint 1 {i}'.format(i=atom.index)
             problem += -charges[atom.index] <= absolute_charges[atom.index], 'Absolute charge contraint 2 {i}'.format(i=atom.index)
 
         is_capping_bond = lambda bond: bond & capping_atom_ids != set()
-        for atom in map(lambda atom_index: self.atoms[atom_index], counter_charges.keys()):
-            problem += counter_charges[atom.index] <=  (1 - sum([B for (bond, B) in bond_orders.items() if atom.index in bond])) * MAX_ABSOLUTE_CHARGE
-            problem += counter_charges[atom.index] >= -(1 - sum([B for (bond, B) in bond_orders.items() if atom.index in bond])) * MAX_ABSOLUTE_CHARGE
+        capping_atom_for_bond = lambda atom_index, bond: list({atom.index} & bond)[0]
+        bond_for_capping_atom_id = lambda atom_index: [bond for bond in self.bonds if atom_index in bond][0]
+        for atom_index in capping_atom_ids:
+            problem += keep_cap[atom_index] <= bond_orders[bond_for_capping_atom_id(atom_index)]
 
-        problem.writeLP('ehtnaol.lp')
         problem.sequentialSolve(OBJECTIVES)
 
         self.charges, self.bond_orders, self.lone_pairs = {}, {}, {}
@@ -1265,7 +1268,6 @@ class Molecule:
         atom_indices_to_delete = set()
         for v in problem.variables():
             variable_type, variable_substr = v.name.split('_')
-            print(v.name, v.varValue)
             if variable_type == 'C':
                 atom_index = int(variable_substr)
                 self.charges[atom_index] = MUST_BE_INT(v.varValue)
@@ -1282,9 +1284,13 @@ class Molecule:
                 atom_index = int(variable_substr)
                 if MUST_BE_INT(v.varValue) != 0:
                     atom_indices_to_delete.add(atom_index)
+            elif variable_type == 'K':
+                pass
             else:
                 raise Exception('Unknown variable type: {0}'.format(variable_type))
 
+        for atom_index in capping_atom_ids:
+            self.charges[atom_index] = 0
         #[self.remove_atom_with_index(atom_index) for atom_index in atom_indices_to_delete]
 
         return [
