@@ -1193,7 +1193,11 @@ class Molecule:
         for atom in filter(lambda atom: atom.element != 'H', core_atoms):
             # Add up to 3 Hydrogens FIXME: Might use different number of different elements
             # FIXME: Currently cause any unsaturation to get saturated ...
-            for i in range(3):
+            if atom.element == 'C' and atom.valence == 3:
+                maximum_number_hydrogens = 3 - len([1 for bond in self.bonds if atom.index in bond])
+            else:
+                maximum_number_hydrogens = 3
+            for _ in range(maximum_number_hydrogens):
                 capping_atom_ids.add(
                     self.add_atom(
                         Atom(index=None, element='H', valence=1, capped=True, coordinates=None),
