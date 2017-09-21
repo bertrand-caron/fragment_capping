@@ -1114,15 +1114,6 @@ class Molecule:
         return None
 
     def remove_atoms_with_predicate(self, predicate: Callable[[Atom], bool]) -> None:
-        first_neighbours_ids = {
-            atom.index: reduce(
-                lambda acc, e: acc | e,
-                [bond for bond in self.bonds if atom.index in bond],
-                frozenset(),
-            ) - {atom.index}
-            for atom in self.atoms.values()
-        }
-
         deleted_atom_ids = {
             atom.index
             for atom in self.atoms.values()
@@ -1170,6 +1161,15 @@ class Molecule:
         )
 
     def remove_united_hydrogens(self) -> None:
+        first_neighbours_ids = {
+            atom.index: reduce(
+                lambda acc, e: acc | e,
+                [bond for bond in self.bonds if atom.index in bond],
+                frozenset(),
+            ) - {atom.index}
+            for atom in self.atoms.values()
+        }
+
         return self.remove_atoms_with_predicate(
             lambda atom: all(
                 [
