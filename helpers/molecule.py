@@ -106,12 +106,15 @@ class Molecule:
 
         return atom_id
 
+    def remove_atom_with_index(self, atom_index: int) -> None:
+        del self.atoms[atom_index]
+        self.bonds = [bond for bond in self.bonds if atom_index not in bond]
+
     def remove_atom(self, atom: Atom) -> None:
-        del self.atoms[atom.index]
-        self.bonds = [bond for bond in self.bonds if atom.index not in bond]
+        return remove_atom_with_index(atom.index)
 
     def remove_atoms(self, atoms: List[Atom]) -> None:
-        [self.remove_atom(atom) for atom in atoms]
+        [self.remove_atom_with_index(atom.index) for atom in atoms]
 
     def add_bond(self, bond: Tuple[int, int]) -> None:
         self.bonds.add(frozenset(bond))
@@ -1175,6 +1178,117 @@ class Molecule:
                 ]
             ),
         )
+
+    def get_all_tautomers(self) -> List[Any]:
+        self.remove_all_hydrogens()
+
+        from pulp import LpProblem, LpMinimize, LpInteger, LpVariable, LpBinary
+
+        problem = LpProblem("Lewis problem (tautomers) for molecule {0}".format(self.name), LpMinimize)
+
+        capping_atom_ids = set()
+        initial_atoms = list(self.atoms.values())
+        for atom in filter(lambda atom: atom.element != 'H', initial_atoms):
+            # Add up to 3 Hydrogens FIXME: Might use different number of different elements
+            for i in range(3):
+                capping_atom_ids.add(
+                    self.add_atom(
+                        Atom(index=None, element='H', valence=1, capped=True, coordinates=None),
+                        bonded_to=[atom.index]
+                    ),
+                )
+
+        charges = {
+            atom.index: LpVariable("C_{i}".format(i=atom.index), -MAX_ABSOLUTE_CHARGE, MAX_ABSOLUTE_CHARGE, LpInteger)
+            for atom in self.atoms.values()
+        }
+
+        counter_charges = {
+            atom.index: LpVariable("S_{i}".format(i=atom.index), -MAX_ABSOLUTE_CHARGE, MAX_ABSOLUTE_CHARGE, LpInteger)
+            for atom in self.atoms.values()
+            if atom.index in capping_atom_ids
+        }
+
+        # Extra variable use to bind charges
+        absolute_charges = {
+            atom_id: LpVariable("Z_{i}".format(i=atom_id), MIN_ABSOLUTE_CHARGE, MAX_ABSOLUTE_CHARGE, LpInteger)
+            for atom_id in charges.keys()
+        }
+
+        non_bonded_pairs = {
+            atom_id: LpVariable("N_{i}".format(i=atom_id), 0, (18 / 2) if can_atom_have_lone_pairs(atom) else 0, LpInteger)
+            for (atom_id, atom) in self.atoms.items()
+        }
+
+        # Maps a bond to an integer
+        bond_mapping = {
+            bond: i
+            for (i, bond) in enumerate(self.bonds)
+        }
+
+        # Maps an integer to a bond
+        bond_reverse_mapping = {v: k for (k, v) in bond_mapping.items()}
+
+        bond_orders = {
+            bond: LpVariable("B_{i}".format(i=bond_mapping[bond]), (0 if (bond & capping_atom_ids) != set() else MIN_BOND_ORDER), MAX_BOND_ORDER, LpInteger)
+            for bond in self.bonds
+        }
+
+        OBJECTIVES = [
+            sum(absolute_charges.values()),
+            sum(counter_charges.values()),
+            sum([charge * ELECTRONEGATIVITIES[self.atoms[atom_id].element] for (atom_id, charge) in charges.items()]),
+            sum([bond_order * ELECTRONEGATIVITIES[self.atoms[atom_id].element] for (bond, bond_order) in bond_orders.items() for atom_id in bond]),
+        ]
+
+        if self.net_charge is not None:
+            problem += sum(charges.values()) == self.net_charge
+
+        for atom in self.atoms.values():
+            problem += charges[atom.index] == VALENCE_ELECTRONS[atom.element] - sum([bond_orders[bond] for bond in self.bonds if atom.index in bond]) - 2 * non_bonded_pairs[atom.index] - (counter_charges[atom.index] if atom.index in counter_charges else 0), '{element}_{index}'.format(element=atom.element, index=atom.index)
+
+        # Deal with absolute values
+        for atom in self.atoms.values():
+            problem += charges[atom.index] <= absolute_charges[atom.index], 'Absolute charge contraint 1 {i}'.format(i=atom.index)
+            problem += -charges[atom.index] <= absolute_charges[atom.index], 'Absolute charge contraint 2 {i}'.format(i=atom.index)
+
+        is_capping_bond = lambda bond: bond & capping_atom_ids != set()
+        for atom in map(lambda atom_index: self.atoms[atom_index], counter_charges.keys()):
+            problem += counter_charges[atom.index] <=  (1 - sum([B for (bond, B) in bond_orders.items() if atom.index in bond])) * MAX_ABSOLUTE_CHARGE
+            problem += counter_charges[atom.index] >= -(1 - sum([B for (bond, B) in bond_orders.items() if atom.index in bond])) * MAX_ABSOLUTE_CHARGE
+
+        problem.writeLP('ehtnaol.lp')
+        problem.sequentialSolve(OBJECTIVES)
+
+        self.charges, self.bond_orders, self.lone_pairs = {}, {}, {}
+
+        atom_indices_to_delete = set()
+        for v in problem.variables():
+            variable_type, variable_substr = v.name.split('_')
+            print(v.name, v.varValue)
+            if variable_type == 'C':
+                atom_index = int(variable_substr)
+                self.charges[atom_index] = MUST_BE_INT(v.varValue)
+            elif variable_type == 'B':
+                bond_index = int(variable_substr)
+                self.bond_orders[bond_reverse_mapping[bond_index]] = MUST_BE_INT(v.varValue)
+                pass
+            elif variable_type == 'Z':
+                pass
+            elif variable_type == 'N':
+                atom_index = int(variable_substr)
+                self.lone_pairs[atom_index] = MUST_BE_INT(v.varValue)
+            elif variable_type == 'S':
+                atom_index = int(variable_substr)
+                if MUST_BE_INT(v.varValue) != 0:
+                    atom_indices_to_delete.add(atom_index)
+            else:
+                raise Exception('Unknown variable type: {0}'.format(variable_type))
+
+        #[self.remove_atom_with_index(atom_index) for atom_index in atom_indices_to_delete]
+
+        return [
+        ]
 
 Uncapped_Molecule = Molecule
 
