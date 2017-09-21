@@ -1,4 +1,4 @@
-from typing import Any, Optional, List, Tuple, Dict, Union, Set, Sequence, TextIO, FrozenSet
+from typing import Any, Optional, List, Tuple, Dict, Union, Set, Sequence, TextIO, FrozenSet, Callable
 from copy import deepcopy
 from operator import itemgetter
 from itertools import groupby, product
@@ -1077,6 +1077,7 @@ class Molecule:
             remap_atom(atom.index): atom._replace(index=remap_atom(atom.index))
             for atom in self.atoms.values()
         }
+
         self.previously_uncapped = {
             remap_atom(atom_index)
             for atom_index in self.previously_uncapped
@@ -1086,21 +1087,28 @@ class Molecule:
             remap_bond(bond)
             for bond in self.bonds
         }
-        self.charges = {
-            remap_atom(atom_index): charge
-            for (atom_index, charge) in self.charges.items()
-        }
-        self.bond_orders = {
-            remap_bond(bond): bond_order
-            for (bond, bond_order) in self.bond_orders.items()
-        }
-        self.aromatic_bonds = {
-            remap_bond(bond)
-            for bond in self.aromatic_bonds
-        }
+
+        if self.charges is not None:
+            self.charges = {
+                remap_atom(atom_index): charge
+                for (atom_index, charge) in self.charges.items()
+            }
+
+        if self.bond_orders is not None:
+            self.bond_orders = {
+                remap_bond(bond): bond_order
+                for (bond, bond_order) in self.bond_orders.items()
+            }
+
+        if self.aromatic_bonds is not None:
+            self.aromatic_bonds = {
+                remap_bond(bond)
+                for bond in self.aromatic_bonds
+            }
+
         return None
 
-    def remove_united_hydrogens(self) -> None:
+    def remove_atoms_with_predicate(self, predicate: Callable[[Atom], bool]) -> None:
         first_neighbours_ids = {
             atom.index: reduce(
                 lambda acc, e: acc | e,
@@ -1113,14 +1121,7 @@ class Molecule:
         deleted_atom_ids = {
             atom.index
             for atom in self.atoms.values()
-            if all(
-                [
-                    atom.element == 'H',
-                    atom.valence == 1,
-                    {self.atoms[neighbour_index].element for neighbour_index in first_neighbours_ids[atom.index]} == {'C'},
-                    {self.charges[neighbour_index] for neighbour_index in first_neighbours_ids[atom.index]} == {0},
-                ]
-            )
+            if predicate(atom)
         }
 
         self.atoms = {
@@ -1135,25 +1136,45 @@ class Molecule:
             if bond & deleted_atom_ids == set()
         }
 
-        self.charges = {
-            atom_index: charge
-            for (atom_index, charge) in self.charges.items()
-            if atom_index not in deleted_atom_ids
-        }
+        if self.charges is not None:
+            self.charges = {
+                atom_index: charge
+                for (atom_index, charge) in self.charges.items()
+                if atom_index not in deleted_atom_ids
+            }
 
-        self.bond_orders = {
-            bond: bond_order
-            for (bond, bond_order) in self.bond_orders.items()
-            if bond in self.bonds
-        }
+        if self.charges is not None:
+            self.bond_orders = {
+                bond: bond_order
+                for (bond, bond_order) in self.bond_orders.items()
+                if bond in self.bonds
+            }
 
-        self.aromatic_bonds = {
-            bond
-            for bond in self.aromatic_bonds
-            if bond in self.bonds
-        }
+        if self.aromatic_bonds is not None:
+            self.aromatic_bonds = {
+                bond
+                for bond in self.aromatic_bonds
+                if bond in self.bonds
+            }
 
         return self.renumber_atoms()
+
+    def remove_all_hydrogens(self) -> None:
+        return self.remove_atoms_with_predicate(
+            lambda atom: atom.element == 'H',
+        )
+
+    def remove_united_hydrogens(self) -> None:
+        return self.remove_atoms_with_predicate(
+            lambda atom: all(
+                [
+                    atom.element == 'H',
+                    atom.valence == 1,
+                    {self.atoms[neighbour_index].element for neighbour_index in first_neighbours_ids[atom.index]} == {'C'},
+                    {self.charges[neighbour_index] for neighbour_index in first_neighbours_ids[atom.index]} == {0},
+                ]
+            ),
+        )
 
 Uncapped_Molecule = Molecule
 
