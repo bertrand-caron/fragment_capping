@@ -1188,16 +1188,18 @@ class Molecule:
 
         problem = LpProblem("Lewis problem (tautomers) for molecule {0}".format(self.name), LpMinimize)
 
+        def maximum_number_hydrogens_for(atom: Atom) -> int:
+            if atom.element == 'C' and atom.valence == 3:
+                return (3 - len([1 for bond in self.bonds if atom.index in bond]))
+            else:
+                return 3
+
         capping_atom_ids = set()
         core_atoms = list(self.atoms.values())
         for atom in filter(lambda atom: atom.element != 'H', core_atoms):
             # Add up to 3 Hydrogens FIXME: Might use different number of different elements
             # FIXME: Currently cause any unsaturation to get saturated ...
-            if atom.element == 'C' and atom.valence == 3:
-                maximum_number_hydrogens = 3 - len([1 for bond in self.bonds if atom.index in bond])
-            else:
-                maximum_number_hydrogens = 3
-            for _ in range(maximum_number_hydrogens):
+            for _ in range(maximum_number_hydrogens_for(atom)):
                 capping_atom_ids.add(
                     self.add_atom(
                         Atom(index=None, element='H', valence=1, capped=True, coordinates=None),
@@ -1223,8 +1225,17 @@ class Molecule:
             for atom_id in charges.keys()
         }
 
+        def maximum_lone_pairs_for(atom: Atom) -> int:
+            if can_atom_have_lone_pairs(atom):
+                if atom.element == 'N':
+                    return 1
+                else:
+                    return (18 / 2)
+            else:
+                return 0
+
         non_bonded_pairs = {
-            atom_id: LpVariable("N_{i}".format(i=atom_id), 0, (18 / 2) if can_atom_have_lone_pairs(self.atoms[atom_id]) else 0, LpInteger)
+            atom_id: LpVariable("N_{i}".format(i=atom_id), 0, maximum_lone_pairs_for(self.atoms[atom_id]), LpInteger)
             for atom_id in charges.keys()
         }
 
