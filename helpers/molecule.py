@@ -1192,6 +1192,7 @@ class Molecule:
         core_atoms = list(self.atoms.values())
         for atom in filter(lambda atom: atom.element != 'H', core_atoms):
             # Add up to 3 Hydrogens FIXME: Might use different number of different elements
+            # FIXME: Currently cause any unsaturation to get saturated ...
             for i in range(3):
                 capping_atom_ids.add(
                     self.add_atom(
@@ -1273,6 +1274,8 @@ class Molecule:
                 self.charges[atom_index] = MUST_BE_INT(v.varValue)
             elif variable_type == 'B':
                 bond_index = int(variable_substr)
+                if MUST_BE_INT(v.varValue) == 0:
+                    atom_indices_to_delete |= (capping_atom_ids & set([atom_index for atom_index in self.atoms.keys() if atom_index in bond_reverse_mapping[bond_index]]))
                 self.bond_orders[bond_reverse_mapping[bond_index]] = MUST_BE_INT(v.varValue)
                 pass
             elif variable_type == 'Z':
@@ -1280,10 +1283,6 @@ class Molecule:
             elif variable_type == 'N':
                 atom_index = int(variable_substr)
                 self.lone_pairs[atom_index] = MUST_BE_INT(v.varValue)
-            elif variable_type == 'S':
-                atom_index = int(variable_substr)
-                if MUST_BE_INT(v.varValue) != 0:
-                    atom_indices_to_delete.add(atom_index)
             elif variable_type == 'K':
                 pass
             else:
@@ -1291,7 +1290,7 @@ class Molecule:
 
         for atom_index in capping_atom_ids:
             self.charges[atom_index] = 0
-        #[self.remove_atom_with_index(atom_index) for atom_index in atom_indices_to_delete]
+        [self.remove_atom_with_index(atom_index) for atom_index in atom_indices_to_delete]
 
         return [
         ]
