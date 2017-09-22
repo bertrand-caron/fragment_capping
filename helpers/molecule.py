@@ -1000,6 +1000,7 @@ class Molecule:
             problem += -charges[atom.index] <= absolute_charges[atom.index], 'Absolute charge contraint 2 {i}'.format(i=atom.index)
 
         problem.sequentialSolve(OBJECTIVES)
+        assert problem.status == 1, (self.name, LpStatus[problem.status])
 
         self.charges, self.bond_orders, self.lone_pairs = {}, {}, {}
 
@@ -1181,7 +1182,7 @@ class Molecule:
             ),
         )
 
-    def get_all_tautomers(self) -> List[Any]:
+    def get_all_tautomers(self, total_number_hydrogens: Optional[int] = None, net_charge: Optional[int] = None) -> List[Any]:
         self.remove_all_hydrogens()
 
         from pulp import LpProblem, LpMinimize, LpInteger, LpVariable, LpBinary
@@ -1255,14 +1256,18 @@ class Molecule:
 
         OBJECTIVES = [
             MIN(sum(absolute_charges.values())),
-            MAX(sum(non_bonded_pairs.values())),
-            MAX(sum(keep_cap.values())),
             MIN(sum([charge * ELECTRONEGATIVITIES[self.atoms[atom_id].element] for (atom_id, charge) in charges.items()])),
             MIN(sum([bond_order * ELECTRONEGATIVITIES[self.atoms[atom_id].element] for (bond, bond_order) in bond_orders.items() for atom_id in bond])),
         ]
 
-        if self.net_charge is not None:
-            problem += sum(charges.values()) == self.net_charge
+        if net_charge is not None:
+            problem += sum(charges.values()) == net_charge, 'Total net charge'
+
+        if total_number_hydrogens is not None:
+            problem += sum(keep_cap.values()) == total_number_hydrogens, 'Total number of hydrogens'
+        else:
+            OBJECTIVES.insert(-2, MAX(sum(keep_cap.values())))
+            OBJECTIVES.insert(-3, MAX(sum(non_bonded_pairs.values())))
 
         for atom in map(lambda atom_index: self.atoms[atom_index], charges.keys()):
             problem += charges[atom.index] == VALENCE_ELECTRONS[atom.element] - sum([bond_orders[bond] for bond in self.bonds if atom.index in bond]) - 2 * non_bonded_pairs[atom.index], '{element}_{index}'.format(element=atom.element, index=atom.index)
@@ -1278,6 +1283,7 @@ class Molecule:
             problem += keep_cap[atom_index] <= bond_orders[bond_for_capping_atom_id(atom_index)]
 
         problem.sequentialSolve(OBJECTIVES)
+        assert problem.status == 1, (self.name, LpStatus[problem.status])
 
         self.charges, self.bond_orders, self.lone_pairs = {}, {}, {}
 
@@ -1299,13 +1305,16 @@ class Molecule:
                 atom_index = int(variable_substr)
                 self.lone_pairs[atom_index] = MUST_BE_INT(v.varValue)
             elif variable_type == 'K':
-                pass
+                print(v.name, v.varValue)
             else:
                 raise Exception('Unknown variable type: {0}'.format(variable_type))
 
         for atom_index in capping_atom_ids:
             self.charges[atom_index] = 0
-        [self.remove_atom_with_index(atom_index) for atom_index in atom_indices_to_delete]
+
+        REMOVE_UNUSED_HYDROGENS = True
+        if REMOVE_UNUSED_HYDROGENS:
+            [self.remove_atom_with_index(atom_index) for atom_index in atom_indices_to_delete]
 
         return [
         ]
