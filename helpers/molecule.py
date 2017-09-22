@@ -1250,14 +1250,18 @@ class Molecule:
         bond_reverse_mapping = {v: k for (k, v) in bond_mapping.items()}
 
         bond_orders = {
-            bond: LpVariable("B_{i}".format(i=bond_mapping[bond]), (0 if (bond & capping_atom_ids) != set() else MIN_BOND_ORDER), MAX_BOND_ORDER, LpInteger)
+            bond: (
+                LpVariable("B_{i}".format(i=bond_mapping[bond]), 0, 1, LpBinary)
+                if (bond & capping_atom_ids) != set()
+                else LpVariable("B_{i}".format(i=bond_mapping[bond]), MIN_BOND_ORDER, MAX_BOND_ORDER, LpInteger)
+            )
             for bond in self.bonds
         }
 
         OBJECTIVES = [
             MIN(sum(absolute_charges.values())),
-            MIN(sum([charge * ELECTRONEGATIVITIES[self.atoms[atom_id].element] for (atom_id, charge) in charges.items()])),
-            MIN(sum([bond_order * ELECTRONEGATIVITIES[self.atoms[atom_id].element] for (bond, bond_order) in bond_orders.items() for atom_id in bond])),
+            #MIN(sum([charge * ELECTRONEGATIVITIES[self.atoms[atom_id].element] for (atom_id, charge) in charges.items()])),
+            #MIN(sum([bond_order * ELECTRONEGATIVITIES[self.atoms[atom_id].element] for (bond, bond_order) in bond_orders.items() for atom_id in bond])),
         ]
 
         if net_charge is not None:
@@ -1266,8 +1270,8 @@ class Molecule:
         if total_number_hydrogens is not None:
             problem += sum(keep_cap.values()) == total_number_hydrogens, 'Total number of hydrogens'
         else:
-            OBJECTIVES.insert(-2, MAX(sum(keep_cap.values())))
-            OBJECTIVES.insert(-3, MAX(sum(non_bonded_pairs.values())))
+            OBJECTIVES.append(MAX(sum(keep_cap.values())))
+            OBJECTIVES.append(MAX(sum(non_bonded_pairs.values())))
 
         for atom in map(lambda atom_index: self.atoms[atom_index], charges.keys()):
             problem += charges[atom.index] == VALENCE_ELECTRONS[atom.element] - sum([bond_orders[bond] for bond in self.bonds if atom.index in bond]) - 2 * non_bonded_pairs[atom.index], '{element}_{index}'.format(element=atom.element, index=atom.index)
