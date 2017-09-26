@@ -947,7 +947,7 @@ class Molecule:
                 )
             }
 
-    def assign_bond_orders_and_charges_with_ILP(self, debug: Optional[TextIO] = None) -> None:
+    def assign_bond_orders_and_charges_with_ILP(self, enforce_octet_rule: bool = False, debug: Optional[TextIO] = None) -> None:
         from pulp import LpProblem, LpMinimize, LpInteger, LpVariable, LpBinary
 
         problem = LpProblem("Lewis problem (bond order and charge assignment) for molecule {0}".format(self.name), LpMinimize)
@@ -998,6 +998,11 @@ class Molecule:
         for atom in self.atoms.values():
             problem += charges[atom.index] <= absolute_charges[atom.index], 'Absolute charge contraint 1 {i}'.format(i=atom.index)
             problem += -charges[atom.index] <= absolute_charges[atom.index], 'Absolute charge contraint 2 {i}'.format(i=atom.index)
+
+        if enforce_octet_rule:
+            for atom in self.atoms.values():
+                if atom.element not in {'B', 'BE', 'P', 'S'}:
+                    problem += 2 * sum([bond_orders[bond] for bond in self.bonds if atom.index in bond]) + 2 * non_bonded_pairs[atom.index] == (2 if atom.element in {'H', 'HE'} else 8)
 
         problem.sequentialSolve(OBJECTIVES)
         assert problem.status == 1, (self.name, LpStatus[problem.status])
