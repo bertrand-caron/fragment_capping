@@ -1037,9 +1037,10 @@ class Molecule:
         }
 
         OBJECTIVES = [
-            sum(absolute_charges.values()),
-            sum([charge * ELECTRONEGATIVITIES[self.atoms[atom_id].element] for (atom_id, charge) in charges.items()]),
-            sum([bond_order * ELECTRONEGATIVITIES[self.atoms[atom_id].element] for (bond, bond_order) in bond_orders.items() for atom_id in bond]),
+            MIN(sum(absolute_charges.values())),
+            #FIXME: sum(charges.values()) as close to zero as possible (cf example_wang_8 and example_wang_9)
+            MIN(sum([charge * ELECTRONEGATIVITIES[self.atoms[atom_id].element] for (atom_id, charge) in charges.items()])),
+            MIN(sum([bond_order * ELECTRONEGATIVITIES[self.atoms[atom_id].element] for (bond, bond_order) in bond_orders.items() for atom_id in bond])),
         ]
 
         if self.net_charge is not None:
