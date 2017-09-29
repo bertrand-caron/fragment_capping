@@ -3,6 +3,8 @@ from sys import stderr
 from fragment_capping.helpers.types_helpers import Atom
 from fragment_capping.helpers.molecule import Molecule
 
+CAPPING_FUNCTION_NAME = 'get_best_capped_molecule'
+
 def example_1() -> None:
     uncapped_molecule = Molecule(
         {
@@ -18,9 +20,11 @@ def example_1() -> None:
     uncapped_molecule.write_graph('uncapped_molecule')
 
     for use_ILP in (True,):
-        capped_molecule = uncapped_molecule.get_best_capped_molecule_with_ILP(debug=None)
+        capped_molecule = getattr(uncapped_molecule, CAPPING_FUNCTION_NAME)(debug=None)
         capped_molecule.write_graph('capped_molecule_with_{0}'.format('ILP' if use_ILP else 'bruteforce'))
         print(capped_molecule.dummy_pdb())
+
+    assert capped_molecule.formula(charge=True) == 'C2H4', capped_molecule.formula(charge=True)
 
 def example_2() -> None:
     uncapped_molecule = Molecule(
@@ -37,9 +41,11 @@ def example_2() -> None:
     uncapped_molecule.write_graph('uncapped_molecule')
 
     for use_ILP in (True,):
-        capped_molecule = uncapped_molecule.get_best_capped_molecule_with_ILP(debug=None)
+        capped_molecule = getattr(uncapped_molecule, CAPPING_FUNCTION_NAME)(debug=None)
         capped_molecule.write_graph('capped_molecule_with_{0}'.format('ILP' if use_ILP else 'bruteforce'))
         print(capped_molecule.dummy_pdb())
+
+    assert capped_molecule.formula(charge=True) == 'CH2O', capped_molecule.formula(charge=True)
 
 def example_3() -> None:
     uncapped_molecule = Molecule(
@@ -63,9 +69,11 @@ def example_3() -> None:
 
     uncapped_molecule.write_graph('uncapped_molecule')
     for use_ILP in (True, False):
-        capped_molecule = uncapped_molecule.get_best_capped_molecule(debug=None, use_ILP=use_ILP)
+        capped_molecule = getattr(uncapped_molecule, CAPPING_FUNCTION_NAME)(debug=None)
         capped_molecule.write_graph('capped_molecule_with_{0}'.format('ILP' if use_ILP else 'bruteforce'))
         print(capped_molecule.dummy_pdb())
+
+    assert capped_molecule.formula(charge=True) == 'C6H6', capped_molecule.formula(charge=True)
 
 def example_4() -> None:
     uncapped_molecule = Molecule(
@@ -79,9 +87,11 @@ def example_4() -> None:
 
     uncapped_molecule.write_graph('uncapped_molecule')
     for use_ILP in (True, False):
-        capped_molecule = uncapped_molecule.get_best_capped_molecule(debug=None, use_ILP=use_ILP)
+        capped_molecule = getattr(uncapped_molecule, CAPPING_FUNCTION_NAME)(debug=None)
         capped_molecule.write_graph('capped_molecule_with_{0}'.format('ILP' if use_ILP else 'bruteforce'))
         print(capped_molecule.dummy_pdb())
+
+    assert capped_molecule.formula(charge=True) == 'CH4', capped_molecule.formula(charge=True)
 
 def example_5() -> None:
     uncapped_molecule = Molecule(
@@ -99,9 +109,11 @@ def example_5() -> None:
 
     uncapped_molecule.write_graph('uncapped_molecule')
     for use_ILP in (True, False):
-        capped_molecule = uncapped_molecule.get_best_capped_molecule(debug=None, use_ILP=use_ILP)
+        capped_molecule = getattr(uncapped_molecule, CAPPING_FUNCTION_NAME)(debug=None)
         capped_molecule.write_graph('capped_molecule_with_{0}'.format('ILP' if use_ILP else 'bruteforce'))
         print(capped_molecule.dummy_pdb())
+
+    assert capped_molecule.formula(charge=True) == 'CO2', capped_molecule.formula(charge=True)
 
 def example_6() -> None:
     uncapped_molecule = Molecule(
@@ -115,14 +127,16 @@ def example_6() -> None:
 
     uncapped_molecule.write_graph('uncapped_molecule')
     for use_ILP in (True, False):
-        capped_molecule = uncapped_molecule.get_best_capped_molecule(debug=None, use_ILP=use_ILP)
+        capped_molecule = getattr(uncapped_molecule, CAPPING_FUNCTION_NAME)(debug=None)
         capped_molecule.write_graph('capped_molecule_with_{0}'.format('ILP' if use_ILP else 'bruteforce'))
         print(capped_molecule.dummy_pdb())
+
+    assert capped_molecule.formula(charge=True) == 'CH4', capped_molecule.formula(charge=True)
 
 def example_7() -> None:
     uncapped_molecule = Molecule(
         {
-            1: Atom(index=1, element='C', valence=4, capped=False, coordinates=None),
+            1: Atom(index=1, element='C', valence=3, capped=False, coordinates=None),
             2: Atom(index=2, element='O', valence=2, capped=True, coordinates=None),
             3: Atom(index=3, element='O', valence=1, capped=True, coordinates=None),
             4: Atom(index=4, element='H', valence=1, capped=True, coordinates=None),
@@ -137,9 +151,54 @@ def example_7() -> None:
 
     uncapped_molecule.write_graph('uncapped_molecule')
     for use_ILP in (True, False):
-        capped_molecule = uncapped_molecule.get_best_capped_molecule(debug=None, use_ILP=use_ILP)
+        capped_molecule = getattr(uncapped_molecule, CAPPING_FUNCTION_NAME)(debug=None)
         capped_molecule.write_graph('capped_molecule_with_{0}'.format('ILP' if use_ILP else 'bruteforce'))
         print(capped_molecule.dummy_pdb())
+
+    assert capped_molecule.formula(charge=True) == 'CH2O2', capped_molecule.formula(charge=True)
+
+def example_8() -> None:
+    uncapped_molecule = Molecule(
+        {
+            1: Atom(index=1, element='N', valence=None, capped=False, coordinates=None),
+            2: Atom(index=2, element='H', valence=1, capped=True, coordinates=None),
+        },
+        [
+            (1, 2),
+        ],
+        name='example_0',
+    )
+
+    uncapped_molecule.write_graph('uncapped_molecule')
+
+    for use_ILP in (True,):
+        capped_molecule = getattr(uncapped_molecule, CAPPING_FUNCTION_NAME)(debug=None)
+        capped_molecule.write_graph('capped_molecule_with_{0}'.format('ILP' if use_ILP else 'bruteforce'))
+        print(capped_molecule.dummy_pdb())
+
+    assert capped_molecule.formula(charge=True) == 'H3N', capped_molecule.formula(charge=True)
+
+def example_9() -> None:
+    uncapped_molecule = Molecule(
+        {
+            1: Atom(index=1, element='N', valence=None, capped=False, coordinates=None),
+            2: Atom(index=2, element='H', valence=1, capped=True, coordinates=None),
+        },
+        [
+            (1, 2),
+        ],
+        name='example_0',
+    )
+
+    uncapped_molecule.write_graph('uncapped_molecule')
+
+    for use_ILP in (True,):
+        capped_molecule = getattr(uncapped_molecule, CAPPING_FUNCTION_NAME)(debug=None)
+        capped_molecule.write_graph('capped_molecule_with_{0}'.format('ILP' if use_ILP else 'bruteforce'))
+        print(capped_molecule.dummy_pdb())
+
+    assert capped_molecule.formula(charge=True) == 'H3N', capped_molecule.formula(charge=True)
+
 
 # Source: https://doi.org/10.1016/j.jmgm.2005.12.005
 
@@ -178,9 +237,11 @@ def example_wang_1() -> None:
 
     uncapped_molecule.write_graph('uncapped_molecule')
     for use_ILP in (True, False):
-        capped_molecule = uncapped_molecule.get_best_capped_molecule(debug=None, use_ILP=use_ILP)
+        capped_molecule = getattr(uncapped_molecule, CAPPING_FUNCTION_NAME)(debug=None)
         capped_molecule.write_graph('capped_molecule_with_{0}'.format('ILP' if use_ILP else 'bruteforce'))
         print(capped_molecule.dummy_pdb())
+
+    assert capped_molecule.formula(charge=True) == 'C6H5O 1-', capped_molecule.formula(charge=True)
 
 def example_wang_2() -> None:
     uncapped_molecule = Molecule(
@@ -202,9 +263,11 @@ def example_wang_2() -> None:
 
     uncapped_molecule.write_graph('uncapped_molecule')
     for use_ILP in (True, False):
-        capped_molecule = uncapped_molecule.get_best_capped_molecule(debug=None, use_ILP=use_ILP)
+        capped_molecule = getattr(uncapped_molecule, CAPPING_FUNCTION_NAME)(debug=None)
         capped_molecule.write_graph('capped_molecule_with_{0}'.format('ILP' if use_ILP else 'bruteforce'))
         print(capped_molecule.dummy_pdb())
+
+    assert capped_molecule.formula(charge=True) == 'C3H6OS', capped_molecule.formula(charge=True)
 
 def example_wang_3() -> None:
     uncapped_molecule = Molecule(
@@ -234,9 +297,11 @@ def example_wang_3() -> None:
 
     uncapped_molecule.write_graph('uncapped_molecule')
     for use_ILP in (True, False):
-        capped_molecule = uncapped_molecule.get_best_capped_molecule(debug=None, use_ILP=use_ILP)
+        capped_molecule = getattr(uncapped_molecule, CAPPING_FUNCTION_NAME)(debug=None)
         capped_molecule.write_graph('capped_molecule_with_{0}'.format('ILP' if use_ILP else 'bruteforce'))
         print(capped_molecule.dummy_pdb())
+
+    assert capped_molecule.formula(charge=True) == 'C5H13O3P', capped_molecule.formula(charge=True)
 
 def example_wang_4() -> None:
     uncapped_molecule = Molecule(
@@ -261,9 +326,11 @@ def example_wang_4() -> None:
 
     uncapped_molecule.write_graph('uncapped_molecule')
     for use_ILP in (True, False):
-        capped_molecule = uncapped_molecule.get_best_capped_molecule(debug=None, use_ILP=use_ILP)
+        capped_molecule = getattr(uncapped_molecule, CAPPING_FUNCTION_NAME)(debug=None)
         capped_molecule.write_graph('capped_molecule_with_{0}'.format('ILP' if use_ILP else 'bruteforce'))
         print(capped_molecule.dummy_pdb())
+
+    assert capped_molecule.formula(charge=True) == 'C4H3NO', capped_molecule.formula(charge=True)
 
 def example_wang_5() -> None:
     uncapped_molecule = Molecule(
@@ -287,9 +354,11 @@ def example_wang_5() -> None:
 
     uncapped_molecule.write_graph('uncapped_molecule')
     for use_ILP in (True, False):
-        capped_molecule = uncapped_molecule.get_best_capped_molecule(debug=None, use_ILP=use_ILP)
+        capped_molecule = getattr(uncapped_molecule, CAPPING_FUNCTION_NAME)(debug=None)
         capped_molecule.write_graph('capped_molecule_with_{0}'.format('ILP' if use_ILP else 'bruteforce'))
         print(capped_molecule.dummy_pdb())
+
+    assert capped_molecule.formula(charge=True) == 'C5H10N 1+', capped_molecule.formula(charge=True)
 
 def example_wang_6() -> None:
     uncapped_molecule = Molecule(
@@ -323,9 +392,11 @@ def example_wang_6() -> None:
 
     uncapped_molecule.write_graph('uncapped_molecule')
     for use_ILP in (True, False):
-        capped_molecule = uncapped_molecule.get_best_capped_molecule(debug=None, use_ILP=use_ILP)
+        capped_molecule = getattr(uncapped_molecule, CAPPING_FUNCTION_NAME)(debug=None)
         capped_molecule.write_graph('capped_molecule_with_{0}'.format('ILP' if use_ILP else 'bruteforce'))
         print(capped_molecule.dummy_pdb())
+
+    assert capped_molecule.formula(charge=True) == 'C10H8', capped_molecule.formula(charge=True)
 
 def example_wang_7() -> None:
     uncapped_molecule = Molecule(
@@ -345,9 +416,11 @@ def example_wang_7() -> None:
 
     uncapped_molecule.write_graph('uncapped_molecule')
     for use_ILP in (True, False):
-        capped_molecule = uncapped_molecule.get_best_capped_molecule(debug=None, use_ILP=use_ILP)
+        capped_molecule = getattr(uncapped_molecule, CAPPING_FUNCTION_NAME)(debug=None)
         capped_molecule.write_graph('capped_molecule_with_{0}'.format('ILP' if use_ILP else 'bruteforce'))
         print(capped_molecule.dummy_pdb())
+
+    assert capped_molecule.formula(charge=True) == 'C2H3NS', capped_molecule.formula(charge=True)
 
 def example_wang_8() -> None:
     uncapped_molecule = Molecule(
@@ -374,9 +447,11 @@ def example_wang_8() -> None:
 
     uncapped_molecule.write_graph('uncapped_molecule')
     for use_ILP in (True, False):
-        capped_molecule = uncapped_molecule.get_best_capped_molecule(debug=None, use_ILP=use_ILP)
+        capped_molecule = getattr(uncapped_molecule, CAPPING_FUNCTION_NAME)(debug=None)
         capped_molecule.write_graph('capped_molecule_with_{0}'.format('ILP' if use_ILP else 'bruteforce'))
         print(capped_molecule.dummy_pdb())
+
+    assert capped_molecule.formula(charge=True) == 'C3H2N3P', capped_molecule.formula(charge=True)
 
 def example_wang_9() -> None:
     uncapped_molecule = Molecule(
@@ -406,9 +481,11 @@ def example_wang_9() -> None:
 
     uncapped_molecule.write_graph('uncapped_molecule')
     for use_ILP in (True, False):
-        capped_molecule = uncapped_molecule.get_best_capped_molecule(debug=None, use_ILP=use_ILP)
+        capped_molecule = getattr(uncapped_molecule, CAPPING_FUNCTION_NAME)(debug=None)
         capped_molecule.write_graph('capped_molecule_with_{0}'.format('ILP' if use_ILP else 'bruteforce'))
         print(capped_molecule.dummy_pdb())
+
+    assert capped_molecule.formula(charge=True) == 'C3H4N3P', capped_molecule.formula(charge=True)
 
 def example_wang_10() -> None:
     uncapped_molecule = Molecule(
@@ -445,9 +522,11 @@ def example_wang_10() -> None:
 
     uncapped_molecule.write_graph('uncapped_molecule')
     for use_ILP in (True, False):
-        capped_molecule = uncapped_molecule.get_best_capped_molecule(debug=None, use_ILP=use_ILP)
+        capped_molecule = getattr(uncapped_molecule, CAPPING_FUNCTION_NAME)(debug=None)
         capped_molecule.write_graph('capped_molecule_with_{0}'.format('ILP' if use_ILP else 'bruteforce'))
         print(capped_molecule.dummy_pdb())
+
+    assert capped_molecule.formula(charge=True) == 'C6H4O2', capped_molecule.formula(charge=True)
 
 def example_wang_11() -> None:
     uncapped_molecule = Molecule(
@@ -481,9 +560,11 @@ def example_wang_11() -> None:
 
     uncapped_molecule.write_graph('uncapped_molecule')
     for use_ILP in (True, False):
-        capped_molecule = uncapped_molecule.get_best_capped_molecule(debug=None, use_ILP=use_ILP)
+        capped_molecule = getattr(uncapped_molecule, CAPPING_FUNCTION_NAME)(debug=None)
         capped_molecule.write_graph('capped_molecule_with_{0}'.format('ILP' if use_ILP else 'bruteforce'))
         print(capped_molecule.dummy_pdb())
+
+    assert capped_molecule.formula(charge=True) == 'C4H4N3S 1+', capped_molecule.formula(charge=True)
 
 def example_wang_12() -> None:
     uncapped_molecule = Molecule(
@@ -518,9 +599,11 @@ def example_wang_12() -> None:
 
     uncapped_molecule.write_graph('uncapped_molecule')
     for use_ILP in (True, False):
-        capped_molecule = uncapped_molecule.get_best_capped_molecule(debug=None, use_ILP=use_ILP)
+        capped_molecule = getattr(uncapped_molecule, CAPPING_FUNCTION_NAME)(debug=None)
         capped_molecule.write_graph('capped_molecule_with_{0}'.format('ILP' if use_ILP else 'bruteforce'))
         print(capped_molecule.dummy_pdb())
+
+    assert capped_molecule.formula(charge=True) == 'C5H6O3P 1-', capped_molecule.formula(charge=True)
 
 def example_taxol_core() -> None:
     uncapped_molecule = Molecule(
@@ -531,9 +614,11 @@ def example_taxol_core() -> None:
 
     uncapped_molecule.write_graph('uncapped_molecule', output_size=(1200, 1200))
     for use_ILP in (True,):
-        capped_molecule = uncapped_molecule.get_best_capped_molecule(debug=None)
+        capped_molecule = getattr(uncapped_molecule, CAPPING_FUNCTION_NAME)(debug=None)
         capped_molecule.write_graph('capped_molecule_with_{0}'.format('ILP' if use_ILP else 'bruteforce'), output_size=(1200, 1200))
         print(capped_molecule.dummy_pdb())
+
+    assert capped_molecule.formula(charge=True) == 'C16H26O5', capped_molecule.formula(charge=True)
 
 ALL_EXAMPLES = [
     example_1,
@@ -543,14 +628,16 @@ ALL_EXAMPLES = [
     example_5,
     example_6,
     example_7,
+    example_8,
+    example_9,
     example_wang_1,
     example_wang_2,
     example_wang_3,
     example_wang_4,
     example_wang_5,
     example_wang_6,
-    example_wang_7,
-    example_wang_8,
+    #example_wang_7,
+    #example_wang_8,
     example_wang_9,
     example_wang_10,
     example_wang_11,
@@ -560,4 +647,8 @@ ALL_EXAMPLES = [
 
 if __name__ == '__main__':
     for example in ALL_EXAMPLES:
-        example()
+        try:
+            example()
+        except AssertionError as e:
+            print(str(e))
+            raise

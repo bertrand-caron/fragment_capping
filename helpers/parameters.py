@@ -43,7 +43,7 @@ ELECTRONEGATIVITIES = {
 }
 
 
-def can_atom_have_lone_pairs(atom: Atom) -> Atom:
+def can_atom_have_nonbonded_electrons(atom: Atom) -> Atom:
     if atom.element in {'C'}:
         return False
     else:
@@ -51,6 +51,8 @@ def can_atom_have_lone_pairs(atom: Atom) -> Atom:
 
 MIN_ABSOLUTE_CHARGE, MAX_ABSOLUTE_CHARGE = 0, 9
 MIN_BOND_ORDER, MAX_BOND_ORDER = 1, 3
+MAX_NONBONDED_ELECTRONS = 18
+ELECTRONS_PER_BOND = 2
 
 MUST_BE_INT = lambda x: round(x)
 

@@ -7,9 +7,10 @@ from functools import reduce, lru_cache
 from os.path import join
 from hashlib import md5
 from sys import stderr
+from math import sqrt
 
 from fragment_capping.helpers.types_helpers import Fragment, ATB_Molid, Atom, FRAGMENT_CAPPING_DIR, Bond, ATOM_INDEX
-from fragment_capping.helpers.parameters import FULL_VALENCES, POSSIBLE_CHARGES, get_capping_options, new_atom_for_capping_strategy, Capping_Strategy, possible_bond_order_for_atom_pair, min_valence, max_valence, coordinates_n_angstroms_away_from, possible_charge_for_atom, ALL_ELEMENTS, electronegativity_spread, ELECTRONEGATIVITIES, VALENCE_ELECTRONS, can_atom_have_lone_pairs, MIN_ABSOLUTE_CHARGE, MAX_ABSOLUTE_CHARGE, MIN_BOND_ORDER, MAX_BOND_ORDER, MUST_BE_INT
+from fragment_capping.helpers.parameters import FULL_VALENCES, POSSIBLE_CHARGES, get_capping_options, new_atom_for_capping_strategy, Capping_Strategy, possible_bond_order_for_atom_pair, min_valence, max_valence, coordinates_n_angstroms_away_from, possible_charge_for_atom, ALL_ELEMENTS, electronegativity_spread, ELECTRONEGATIVITIES, VALENCE_ELECTRONS, can_atom_have_nonbonded_electrons, MIN_ABSOLUTE_CHARGE, MAX_ABSOLUTE_CHARGE, MIN_BOND_ORDER, MAX_BOND_ORDER, MUST_BE_INT, MAX_NONBONDED_ELECTRONS, NO_CAP, ELECTRONS_PER_BOND
 
 DRAW_ALL_POSSIBLE_GRAPHS = False
 
@@ -71,6 +72,7 @@ class Molecule:
         self.bond_orders, self.charges = None, None
         self.previously_uncapped = set()
         self.aromatic_bonds = None
+        self.non_bonded_electrons = None
 
     def atom_desc(self, atom: Atom):
         if self.use_neighbour_valences:
@@ -91,12 +93,26 @@ class Molecule:
     def ids(self) -> List[ATOM_INDEX]:
         return list(self.atoms.keys())
 
+    def assert_no_floating_atoms(self) -> None:
+        if len(self.atoms) > 1:
+            assert all([len([bond for bond in self.bonds if atom_index in bond]) > 0 for atom_index in self.atoms.keys()])
+        return None
+
     def __str__(self) -> str:
         try:
             netcharge = self.netcharge()
         except No_Charges_And_Bond_Orders:
             netcharge = None
-        return 'Molecule(atoms={0}, bonds={1}, formula="{2}", netcharge={3})'.format(self.atoms, self.bonds, self.formula(charge=False), netcharge)
+
+        return 'Molecule(atoms={0}, bonds={1}, formula="{2}", netcharge={3}, charges={4}, bond_orders={5}, non_bonded_electrons={6})'.format(
+            self.atoms,
+            self.bonds,
+            self.formula(charge=False),
+            netcharge,
+            self.charges,
+            self.bond_orders,
+            self.non_bonded_electrons,
+        )
 
     def add_atom(self, atom: Atom, bonded_to: Optional[List[int]] = None) -> int:
         highest_id = max(self.atoms.keys())
@@ -213,7 +229,7 @@ class Molecule:
             print('Bonds were: {0}'.format(self.bonds))
             raise
 
-    def get_best_capped_molecule_with_ILP(self, draw_all_possible_graphs: bool = DRAW_ALL_POSSIBLE_GRAPHS, debug: Optional[TextIO] = None):
+    def get_best_capped_molecule_with_ILP(self, draw_all_possible_graphs: bool = DRAW_ALL_POSSIBLE_GRAPHS, enforce_octet_rule: bool = True, allow_radicals: bool = False, debug: Optional[TextIO] = None):
         capping_options = get_capping_options(self.use_neighbour_valences)
 
         neighbour_counts = self.neighbours_for_atoms()
@@ -271,12 +287,15 @@ class Molecule:
 
         problem = LpProblem("Capping problem for molecule {0}".format(self.name), LpMinimize)
 
+        ELECTRON_MULTIPLIER = (2 if not allow_radicals else 1)
+
         counter_charges = {}
         fragment_switches = {}
         capping_atoms_for = {}
         new_bonds_sets = {}
         for uncapped_atom in atoms_need_capping:
-            for (i, capping_strategy) in enumerate(possible_capping_strategies_for_atom(uncapped_atom)):
+            for (i, capping_strategy) in enumerate(filter(lambda capping_strategy: capping_strategy != NO_CAP, sorted(possible_capping_strategies_for_atom(uncapped_atom))), start=1):
+                print(uncapped_atom, capping_strategy, i)
                 # Add switch variable
                 fragment_switches[uncapped_atom.index, i] = LpVariable(
                     'F_{i},{j}'.format(i=uncapped_atom.index, j=i),
@@ -314,8 +333,8 @@ class Molecule:
             for atom_id in charges.keys()
         }
 
-        non_bonded_pairs = {
-            atom_id: LpVariable("N_{i}".format(i=atom_id), 0, (18 / 2) if can_atom_have_lone_pairs(atom) else 0, LpInteger)
+        non_bonded_electrons = {
+            atom_id: LpVariable("N_{i}".format(i=atom_id), 0, MAX_NONBONDED_ELECTRONS // ELECTRON_MULTIPLIER if can_atom_have_nonbonded_electrons(atom) else 0, LpInteger)
             for (atom_id, atom) in self.atoms.items()
         }
 
@@ -327,10 +346,11 @@ class Molecule:
 
         # Maps an integer to a bond
         bond_reverse_mapping = {v: k for (k, v) in bond_mapping.items()}
+        bond_key = lambda bond: ','.join(map(str, sorted(bond)))
 
         bond_orders = {
             bond: LpVariable(
-                "B_{i}".format(i=bond_mapping[bond]),
+                "B_{bond_key}".format(bond_key=bond_key(bond)),
                 0 if any(bond in new_bonds for new_bonds in new_bonds_sets.values()) else MIN_BOND_ORDER,
                 MAX_BOND_ORDER,
                 LpInteger,
@@ -340,8 +360,8 @@ class Molecule:
 
         for ((uncapped_atom_id, i), new_bonds) in new_bonds_sets.items():
             for new_bond in new_bonds:
-                problem += bond_orders[new_bond] <= fragment_switches[uncapped_atom_id, i] * MAX_BOND_ORDER
-                problem += bond_orders[new_bond] >= fragment_switches[uncapped_atom_id, i]
+                problem += (bond_orders[new_bond] >= fragment_switches[uncapped_atom_id, i], 'Minimum bond order for fragment bond {bond_key}'.format(bond_key=bond_key(new_bond)))
+                problem += (bond_orders[new_bond] <= MAX_BOND_ORDER * fragment_switches[uncapped_atom_id, i], 'Maximum bond order for fragment bond {bond_key}'.format(bond_key=bond_key(new_bond)))
 
         OBJECTIVES = [
             sum(absolute_charges.values()),
@@ -361,11 +381,11 @@ class Molecule:
                 -
                 sum([bond_orders[bond] for bond in self.bonds if atom.index in bond])
                 -
-                2 * non_bonded_pairs[atom.index]
+                ELECTRON_MULTIPLIER * non_bonded_electrons[atom.index]
                 -
                 (counter_charges[atom.index] if atom.index in counter_charges else 0)
                 ,
-                '{element}_{index}'.format(element=atom.element, index=atom.index),
+                'Atom_{element}_{index}'.format(element=atom.element, index=atom.index),
             )
 
         # Deal with absolute values
@@ -373,39 +393,67 @@ class Molecule:
             problem += charges[atom.index] <= absolute_charges[atom.index], 'Absolute charge contraint 1 {i}'.format(i=atom.index)
             problem += -charges[atom.index] <= absolute_charges[atom.index], 'Absolute charge contraint 2 {i}'.format(i=atom.index)
 
-        if False:
-            problem.writeLP('test.lp')
-        problem.sequentialSolve(OBJECTIVES)
-        assert problem.status == 1, (self.name, LpStatus[problem.status])
+            if enforce_octet_rule:
+                if atom.element not in {'B', 'BE', 'P', 'S'}:
+                    problem += (
+                        ELECTRONS_PER_BOND * sum([bond_orders[bond] for bond in self.bonds if atom.index in bond]) + ELECTRON_MULTIPLIER * non_bonded_electrons[atom.index] == (2 if atom.element in {'H', 'HE'} else 8),
+                        'Octet_{element}_{index}'.format(element=atom.element, index=atom.index),
+                    )
 
-        self.charges, self.bond_orders, self.lone_pairs = {}, {}, {}
+        try:
+            #problem += fragment_switches[6, 1] == 0
+            problem.sequentialSolve(OBJECTIVES)
+            assert problem.status == 1, (self.name, LpStatus[problem.status])
+            #assert False
+        except Exception as e:
+            problem.writeLP('debug.lp')
+            self.write_graph('DEBUG', output_size=(1000, 1000))
+            print('Failed LP written to "debug.lp"')
+            raise
+
+        DELETE_FAILED_CAPS = True
+
+        self.charges, self.bond_orders, self.non_bonded_electrons = {}, {}, {}
         for v in problem.variables():
             variable_type, variable_substr = v.name.split('_')
-            print(v.name, v.varValue)
+            if variable_type in {'F', 'B'} or '6' in v.name:
+                print(v.name, v.varValue)
             if variable_type == 'C':
                 atom_index = int(variable_substr)
                 self.charges[atom_index] = MUST_BE_INT(v.varValue)
             elif variable_type == 'B':
-                bond_index = int(variable_substr)
-                self.bond_orders[bond_reverse_mapping[bond_index]] = MUST_BE_INT(v.varValue)
-                pass
+                if False:
+                    bond_index = int(variable_substr)
+                    self.bond_orders[bond_reverse_mapping[bond_index]] = MUST_BE_INT(v.varValue)
+                else:
+                    bond = frozenset(map(int, variable_substr.split(',')))
+                    self.bond_orders[bond] = MUST_BE_INT(v.varValue)
             elif variable_type == 'Z':
                 pass
             elif variable_type == 'N':
                 atom_index = int(variable_substr)
-                self.lone_pairs[atom_index] = MUST_BE_INT(v.varValue)
+                self.non_bonded_electrons[atom_index] = MUST_BE_INT(v.varValue) * ELECTRON_MULTIPLIER
             elif variable_type == 'F':
                 uncapped_atom_id, capping_strategy_id = map(int, variable_substr.split(','))
-                if MUST_BE_INT(v.varValue) == 0:
+                #print(uncapped_atom_id, capping_strategy_id, capping_atoms_for[uncapped_atom_id, capping_strategy_id])
+                if MUST_BE_INT(v.varValue) == 0 and DELETE_FAILED_CAPS:
                     self.remove_atoms(atom for atom in capping_atoms_for[uncapped_atom_id, capping_strategy_id])
             elif variable_type == 'S':
                 pass
             else:
                 raise Exception('Unknown variable type: {0}'.format(variable_type))
 
+        if not allow_radicals and False:
+            assert all([nonbonded_electrons % 2 == 0 for nonbonded_electrons in self.non_bonded_electrons.values()]), {
+                self.atoms[atom_index]: electrons
+                for (atom_index, electrons) in self.non_bonded_electrons.items()
+                if electrons % 2 == 1
+            }
+
+        #exit()
         return self
 
-    def get_best_capped_molecule(self, draw_all_possible_graphs: bool = DRAW_ALL_POSSIBLE_GRAPHS, debug: Optional[TextIO] = None, use_ILP: bool = True):
+    def get_best_capped_molecule(self, draw_all_possible_graphs: bool = DRAW_ALL_POSSIBLE_GRAPHS, debug: Optional[TextIO] = None, use_ILP: bool = True, **kwargs: Dict[str, Any]):
         capping_options = get_capping_options(self.use_neighbour_valences)
 
         neighbour_counts = self.neighbours_for_atoms()
@@ -507,17 +555,20 @@ class Molecule:
         best_molecule = possible_capped_molecules[0]
         return best_molecule
 
-    def write_graph(self, unique_id: Union[str, int], **kwargs: Dict[str, Any]) -> str:
+    def write_graph(self, unique_id: Union[str, int], graph_kwargs: Dict[str, Any] = {}, output_size: Optional[Tuple[int, int]] = None, **kwargs: Dict[str, Any]) -> str:
+        if output_size is None:
+            output_size = [int(sqrt(len(self.atoms) / 3) * 300)] * 2
+
         graph_filepath = join(FRAGMENT_CAPPING_DIR, 'graphs' ,'_'.join((self.name, str(unique_id))) + '.png')
         try:
             from chem_graph_tool.pdb import graph_from_pdb
             from chem_graph_tool.moieties import draw_graph
-            graph = self.graph()
+            graph = self.graph(**graph_kwargs)
             draw_graph(
                 graph,
                 fnme=graph_filepath,
                 force_regen=True,
-                **kwargs,
+                **{**{'output_size': output_size}, **kwargs},
             )
         except Exception as e:
             print(
@@ -540,7 +591,7 @@ class Molecule:
                     groupby(
                         sorted(
                             elements,
-                            key=lambda element: (element != 'C', element),
+                            key=lambda element: (element != 'C', element != 'H', element), # Hill ordering
                         ),
                     )
                 ],
@@ -695,7 +746,7 @@ class Molecule:
     def inchi(self) -> str:
         return self.representation('inchi')
 
-    def graph(self) -> Any:
+    def graph(self, include_atom_index: bool = False) -> Any:
         try:
             from graph_tool.all import Graph
         except:
@@ -721,17 +772,18 @@ class Molecule:
             else:
                 charge = self.charges[atom_index]
                 charge_str = (str(abs(charge)) + ('-' if charge < 0 else '+')) if charge != 0 else ''
-            vertex_types[v] = '{element}{valence}{charge_str}'.format(
+            vertex_types[v] = '{element}{valence}{charge_str}{index}'.format(
                 element=atom.element,
                 valence=atom.valence if self.use_neighbour_valences else '',
                 charge_str=(' ' if charge_str else '') + charge_str,
+                index=' ({0})'.format(atom.index) if include_atom_index else '',
             )
             if atom.index in self.previously_uncapped:
-                vertex_colors[v] = '#90EE90'
+                vertex_colors[v] = '#90EE90' # Green
             elif atom.capped:
-                vertex_colors[v] = '#EEEEEE'
+                vertex_colors[v] = '#EEEEEE' # Grey
             else:
-                vertex_colors[v] = '#FF91A4'
+                vertex_colors[v] = '#FF91A4' # Red
             vertices[atom_index] = v
 
         for bond in self.bonds:
@@ -947,10 +999,12 @@ class Molecule:
                 )
             }
 
-    def assign_bond_orders_and_charges_with_ILP(self, enforce_octet_rule: bool = False, debug: Optional[TextIO] = None) -> None:
-        from pulp import LpProblem, LpMinimize, LpInteger, LpVariable, LpBinary
+    def assign_bond_orders_and_charges_with_ILP(self, enforce_octet_rule: bool = True, allow_radicals: bool = False, debug: Optional[TextIO] = None) -> None:
+        from pulp import LpProblem, LpMinimize, LpInteger, LpVariable, LpBinary, LpStatus
 
         problem = LpProblem("Lewis problem (bond order and charge assignment) for molecule {0}".format(self.name), LpMinimize)
+
+        ELECTRON_MULTIPLIER = (2 if not allow_radicals else 1)
 
         charges = {
             atom.index: LpVariable("C_{i}".format(i=atom.index), -MAX_ABSOLUTE_CHARGE, MAX_ABSOLUTE_CHARGE, LpInteger)
@@ -963,8 +1017,8 @@ class Molecule:
             for atom_id in charges.keys()
         }
 
-        non_bonded_pairs = {
-            atom_id: LpVariable("N_{i}".format(i=atom_id), 0, (18 / 2) if can_atom_have_lone_pairs(atom) else 0, LpInteger)
+        non_bonded_electrons = {
+            atom_id: LpVariable("N_{i}".format(i=atom_id), 0, MAX_NONBONDED_ELECTRONS // ELECTRON_MULTIPLIER if can_atom_have_nonbonded_electrons(atom) else 0, LpInteger)
             for (atom_id, atom) in self.atoms.items()
         }
 
@@ -992,22 +1046,21 @@ class Molecule:
             problem += sum(charges.values()) == self.net_charge
 
         for atom in self.atoms.values():
-            problem += charges[atom.index] == VALENCE_ELECTRONS[atom.element] - sum([bond_orders[bond] for bond in self.bonds if atom.index in bond]) - 2 * non_bonded_pairs[atom.index], '{element}_{index}'.format(element=atom.element, index=atom.index)
+            problem += charges[atom.index] == VALENCE_ELECTRONS[atom.element] - sum([bond_orders[bond] for bond in self.bonds if atom.index in bond]) - ELECTRON_MULTIPLIER * non_bonded_electrons[atom.index], '{element}_{index}'.format(element=atom.element, index=atom.index)
 
         # Deal with absolute values
         for atom in self.atoms.values():
             problem += charges[atom.index] <= absolute_charges[atom.index], 'Absolute charge contraint 1 {i}'.format(i=atom.index)
             problem += -charges[atom.index] <= absolute_charges[atom.index], 'Absolute charge contraint 2 {i}'.format(i=atom.index)
 
-        if enforce_octet_rule:
-            for atom in self.atoms.values():
+            if enforce_octet_rule:
                 if atom.element not in {'B', 'BE', 'P', 'S'}:
-                    problem += 2 * sum([bond_orders[bond] for bond in self.bonds if atom.index in bond]) + 2 * non_bonded_pairs[atom.index] == (2 if atom.element in {'H', 'HE'} else 8)
+                    problem += ELECTRONS_PER_BOND * sum([bond_orders[bond] for bond in self.bonds if atom.index in bond]) + ELECTRON_MULTIPLIER * non_bonded_electrons[atom.index] == (2 if atom.element in {'H', 'HE'} else 8)
 
         problem.sequentialSolve(OBJECTIVES)
         assert problem.status == 1, (self.name, LpStatus[problem.status])
 
-        self.charges, self.bond_orders, self.lone_pairs = {}, {}, {}
+        self.charges, self.bond_orders, self.non_bonded_electrons = {}, {}, {}
 
         for v in problem.variables():
             variable_type, variable_substr = v.name.split('_')
@@ -1022,13 +1075,15 @@ class Molecule:
                 pass
             elif variable_type == 'N':
                 atom_index = int(variable_substr)
-                self.lone_pairs[atom_index] = MUST_BE_INT(v.varValue)
+                self.non_bonded_electrons[atom_index] = MUST_BE_INT(v.varValue) * ELECTRON_MULTIPLIER
+                if allow_radicals and self.non_bonded_electrons[atom_index] % 2 == 1:
+                    stderr.write('Warning: Radical molecule...')
             else:
                 raise Exception('Unknown variable type: {0}'.format(variable_type))
         write_to_debug(debug, 'molecule_name', self.name)
         write_to_debug(debug, 'bond_orders:', self.bond_orders)
         write_to_debug(debug, 'charges', self.charges)
-        write_to_debug(debug, 'lone_pairs', self.lone_pairs)
+        write_to_debug(debug, 'non_bonded_electrons', self.non_bonded_electrons)
         self.assign_aromatic_bonds()
 
     def assign_aromatic_bonds(self):
@@ -1187,7 +1242,7 @@ class Molecule:
             ),
         )
 
-    def get_all_tautomers(self, total_number_hydrogens: Optional[int] = None, net_charge: Optional[int] = None) -> List[Any]:
+    def get_all_tautomers(self, total_number_hydrogens: Optional[int] = None, net_charge: Optional[int] = None, enforce_octet_rule: bool = True) -> List[Any]:
         self.remove_all_hydrogens()
 
         from pulp import LpProblem, LpMinimize, LpInteger, LpVariable, LpBinary
@@ -1231,17 +1286,8 @@ class Molecule:
             for atom_id in charges.keys()
         }
 
-        def maximum_lone_pairs_for(atom: Atom) -> int:
-            if can_atom_have_lone_pairs(atom):
-                if atom.element == 'N':
-                    return 1
-                else:
-                    return (18 / 2)
-            else:
-                return 0
-
-        non_bonded_pairs = {
-            atom_id: LpVariable("N_{i}".format(i=atom_id), 0, maximum_lone_pairs_for(self.atoms[atom_id]), LpInteger)
+        non_bonded_electrons = {
+            atom_id: LpVariable("N_{i}".format(i=atom_id), 0, MAX_NONBONDED_ELECTRONS, LpInteger)
             for atom_id in charges.keys()
         }
 
@@ -1276,14 +1322,18 @@ class Molecule:
             problem += sum(keep_cap.values()) == total_number_hydrogens, 'Total number of hydrogens'
         else:
             OBJECTIVES.append(MAX(sum(keep_cap.values())))
-            OBJECTIVES.append(MAX(sum(non_bonded_pairs.values())))
+            OBJECTIVES.append(MAX(sum(non_bonded_electrons.values())))
 
         for atom in map(lambda atom_index: self.atoms[atom_index], charges.keys()):
-            problem += charges[atom.index] == VALENCE_ELECTRONS[atom.element] - sum([bond_orders[bond] for bond in self.bonds if atom.index in bond]) - 2 * non_bonded_pairs[atom.index], '{element}_{index}'.format(element=atom.element, index=atom.index)
+            problem += charges[atom.index] == VALENCE_ELECTRONS[atom.element] - sum([bond_orders[bond] for bond in self.bonds if atom.index in bond]) - non_bonded_electrons[atom.index], '{element}_{index}'.format(element=atom.element, index=atom.index)
 
             # Deal with absolute values
             problem += charges[atom.index] <= absolute_charges[atom.index], 'Absolute charge contraint 1 {i}'.format(i=atom.index)
             problem += -charges[atom.index] <= absolute_charges[atom.index], 'Absolute charge contraint 2 {i}'.format(i=atom.index)
+
+            if enforce_octet_rule:
+                if atom.element not in {'B', 'BE', 'P', 'S'}:
+                    problem += ELECTRONS_PER_BOND * sum([bond_orders[bond] for bond in self.bonds if atom.index in bond]) + non_bonded_electrons[atom.index] == (2 if atom.element in {'H', 'HE'} else 8)
 
         is_capping_bond = lambda bond: bond & capping_atom_ids != set()
         capping_atom_for_bond = lambda atom_index, bond: list({atom.index} & bond)[0]
@@ -1294,7 +1344,7 @@ class Molecule:
         problem.sequentialSolve(OBJECTIVES)
         assert problem.status == 1, (self.name, LpStatus[problem.status])
 
-        self.charges, self.bond_orders, self.lone_pairs = {}, {}, {}
+        self.charges, self.bond_orders, self.non_bonded_electrons = {}, {}, {}
 
         atom_indices_to_delete = set()
         for v in problem.variables():
@@ -1312,7 +1362,7 @@ class Molecule:
                 pass
             elif variable_type == 'N':
                 atom_index = int(variable_substr)
-                self.lone_pairs[atom_index] = MUST_BE_INT(v.varValue)
+                self.non_bonded_electrons[atom_index] = MUST_BE_INT(v.varValue)
             elif variable_type == 'K':
                 print(v.name, v.varValue)
             else:
@@ -1429,5 +1479,5 @@ if __name__ == '__main__':
     END'''
     molecule = molecule_from_pdb_str(A)
     molecule.assign_bond_orders_and_charges_with_ILP()
-    print(molecule.charges, molecule.lone_pairs, molecule.bond_orders)
+    print(molecule.charges, molecule.non_bonded_electrons, molecule.bond_orders)
     print(molecule.mol2())
