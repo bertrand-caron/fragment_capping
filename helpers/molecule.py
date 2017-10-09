@@ -47,6 +47,8 @@ class Molecule:
         bonds: List[Tuple[int, int]],
         name: Optional[str] = None,
         net_charge: Optional[int] = None,
+        formal_charges: Optional[Dict[ATOM_INDEX, int]] = None,
+        bond_orders: Optional[Dict[Bond, int]] = None,
         **kwargs: Dict[str, Any]
     ) -> None:
         if type(atoms) in (list, set, frozenset):
@@ -70,7 +72,17 @@ class Molecule:
             else False
         )
 
-        self.bond_orders, self.charges = None, None
+        if formal_charges is not None:
+            assert all(isinstance(formal_charge, int) for (_, formal_charge) in formal_charges.items()), 'Non-integer formal charges: {0}'.format(
+                {atom: formal_charge for (atom, formal_charge) in formal_charges.items() if not isinstance(formal_charge, int)}
+            )
+
+        if bond_orders is not None:
+            assert all(isinstance(bond_order, int) for (_, bond_order) in bond_orders.items()), 'Non-integer bond orders: {0}'.format(
+                {bond: bond_order for (bond, bond_order) in bond_orders.items() if not isinstance(bond_order, int)}
+            )
+
+        self.bond_orders, self.formal_charges = bond_orders, formal_charges
         self.previously_uncapped = set()
         self.aromatic_bonds = None
         self.non_bonded_electrons = None
@@ -110,7 +122,7 @@ class Molecule:
             self.bonds,
             self.formula(charge=False),
             netcharge,
-            self.charges,
+            self.formal_charges,
             self.bond_orders,
             self.non_bonded_electrons,
         )
@@ -420,12 +432,12 @@ class Molecule:
 
         DELETE_FAILED_CAPS = True
 
-        self.charges, self.bond_orders, self.non_bonded_electrons = {}, {}, {}
+        self.formal_charges, self.bond_orders, self.non_bonded_electrons = {}, {}, {}
         for v in problem.variables():
             variable_type, variable_substr = v.name.split('_')
             if variable_type == 'C':
                 atom_index = int(variable_substr)
-                self.charges[atom_index] = MUST_BE_INT(v.varValue)
+                self.formal_charges[atom_index] = MUST_BE_INT(v.varValue)
             elif variable_type == 'B':
                 if False:
                     bond_index = int(variable_substr)
@@ -722,7 +734,7 @@ class Molecule:
                     sibyl_atom_type=sibyl_atom_type(atom),
                     subst_id=1,
                     subst_name='<1>',
-                    charge=float(self.charges[atom.index]),
+                    charge=float(self.formal_charges[atom.index]),
                 ),
             )
 
@@ -776,11 +788,11 @@ class Molecule:
         vertices = {}
         for (atom_index, atom) in sorted(self.atoms.items()):
             v = g.add_vertex()
-            if self.charges is None:
+            if self.formal_charges is None:
                 possible_charges = possible_charge_for_atom(atom)
                 charge_str = str(possible_charges).replace(' ', '') if len(possible_charges) > 1 else ''
             else:
-                charge = self.charges[atom_index]
+                charge = self.formal_charges[atom_index]
                 charge_str = (str(abs(charge)) + ('-' if charge < 0 else '+')) if charge != 0 else ''
             vertex_types[v] = '{element}{valence}{charge_str}{index}'.format(
                 element=atom.element,
@@ -868,7 +880,7 @@ class Molecule:
 
         assert len(acceptable_bond_orders_and_charges) >= 1, 'No valid bond_orders and charges found amongst {0} tried.'.format(len_possible_bond_orders_and_charges)
 
-        best_bond_orders, self.charges = acceptable_bond_orders_and_charges[0]
+        best_bond_orders, self.formal_charges = acceptable_bond_orders_and_charges[0]
 
         self.bond_orders = {
             bond: bond_order
@@ -878,13 +890,13 @@ class Molecule:
 
     def netcharge(self) -> int:
         try:
-            return sum(self.charges.values())
+            return sum(self.formal_charges.values())
         except:
             raise No_Charges_And_Bond_Orders('Assign charges and bond_orders first.')
 
     def net_abs_charges(self) -> int:
         try:
-            return sum(map(abs, list(self.charges.values())))
+            return sum(map(abs, list(self.formal_charges.values())))
         except:
             raise No_Charges_And_Bond_Orders('Assign charges and bond_orders first.')
 
@@ -1071,13 +1083,13 @@ class Molecule:
         problem.sequentialSolve(OBJECTIVES)
         assert problem.status == 1, (self.name, LpStatus[problem.status])
 
-        self.charges, self.bond_orders, self.non_bonded_electrons = {}, {}, {}
+        self.formal_charges, self.bond_orders, self.non_bonded_electrons = {}, {}, {}
 
         for v in problem.variables():
             variable_type, variable_substr = v.name.split('_')
             if variable_type == 'C':
                 atom_index = int(variable_substr)
-                self.charges[atom_index] = MUST_BE_INT(v.varValue)
+                self.formal_charges[atom_index] = MUST_BE_INT(v.varValue)
             elif variable_type == 'B':
                 bond_index = int(variable_substr)
                 self.bond_orders[bond_reverse_mapping[bond_index]] = MUST_BE_INT(v.varValue)
@@ -1093,7 +1105,7 @@ class Molecule:
                 raise Exception('Unknown variable type: {0}'.format(variable_type))
         write_to_debug(debug, 'molecule_name', self.name)
         write_to_debug(debug, 'bond_orders:', self.bond_orders)
-        write_to_debug(debug, 'charges', self.charges)
+        write_to_debug(debug, 'formal_charges', self.formal_charges)
         write_to_debug(debug, 'non_bonded_electrons', self.non_bonded_electrons)
         self.assign_aromatic_bonds()
 
@@ -1165,10 +1177,10 @@ class Molecule:
             for bond in self.bonds
         }
 
-        if self.charges is not None:
-            self.charges = {
+        if self.formal_charges is not None:
+            self.formal_charges = {
                 remap_atom(atom_index): charge
-                for (atom_index, charge) in self.charges.items()
+                for (atom_index, charge) in self.formal_charges.items()
             }
 
         if self.bond_orders is not None:
@@ -1204,14 +1216,14 @@ class Molecule:
             if bond & deleted_atom_ids == set()
         }
 
-        if self.charges is not None:
-            self.charges = {
+        if self.formal_charges is not None:
+            self.formal_charges = {
                 atom_index: charge
-                for (atom_index, charge) in self.charges.items()
+                for (atom_index, charge) in self.formal_charges.items()
                 if atom_index not in deleted_atom_ids
             }
 
-        if self.charges is not None:
+        if self.formal_charges is not None:
             self.bond_orders = {
                 bond: bond_order
                 for (bond, bond_order) in self.bond_orders.items()
@@ -1248,7 +1260,7 @@ class Molecule:
                     atom.element == 'H',
                     atom.valence == 1,
                     {self.atoms[neighbour_index].element for neighbour_index in first_neighbours_ids[atom.index]} == {'C'},
-                    {self.charges[neighbour_index] for neighbour_index in first_neighbours_ids[atom.index]} == {0},
+                    {self.formal_charges[neighbour_index] for neighbour_index in first_neighbours_ids[atom.index]} == {0},
                 ]
             ),
         )
@@ -1355,14 +1367,14 @@ class Molecule:
         problem.sequentialSolve(OBJECTIVES)
         assert problem.status == 1, (self.name, LpStatus[problem.status])
 
-        self.charges, self.bond_orders, self.non_bonded_electrons = {}, {}, {}
+        self.formal_charges, self.bond_orders, self.non_bonded_electrons = {}, {}, {}
 
         atom_indices_to_delete = set()
         for v in problem.variables():
             variable_type, variable_substr = v.name.split('_')
             if variable_type == 'C':
                 atom_index = int(variable_substr)
-                self.charges[atom_index] = MUST_BE_INT(v.varValue)
+                self.formal_charges[atom_index] = MUST_BE_INT(v.varValue)
             elif variable_type == 'B':
                 bond_index = int(variable_substr)
                 if MUST_BE_INT(v.varValue) == 0:
@@ -1380,7 +1392,7 @@ class Molecule:
                 raise Exception('Unknown variable type: {0}'.format(variable_type))
 
         for atom_index in capping_atom_ids:
-            self.charges[atom_index] = 0
+            self.formal_charges[atom_index] = 0
 
         REMOVE_UNUSED_HYDROGENS = True
         if REMOVE_UNUSED_HYDROGENS:
@@ -1448,8 +1460,51 @@ def molecule_from_pdb_str(pdb_str: str, **kwargs: Dict[str, Any]) -> Molecule:
         bonds,
         **kwargs,
     )
+
+def molecule_from_mol2_str(mol2_str: str, **kwargs: Dict[str, Any]) -> Molecule:
+    assert mol2_str.count('@MOLECULE') == 1, 'Only one molecule at a time'
+
+    def atom_for_atom_line(line: str) -> Tuple[Atom, float]:
+        index_str, name_str, x, y, z, sybil_atom_type, _, _, partial_charge = line.split()
+        element, *_ = sybil_atom_type.split('.')
+
+        return (
+            Atom(
+                index=int(index_str),
+                element=element,
+                valence=None,
+                coordinates=(x, y, z),
+                capped=True,
+            ),
+            float(partial_charge),
+        )
+
+    def bond_for_atom_line(line: str) -> Tuple[Bond, int]:
+        bond_label, atom_id_1, atom_id_2, bond_order = map(int, line.split())
+        return (frozenset([atom_id_1, atom_id_2]), bond_order)
+
+    read_lines, atoms, bonds = False, [], []
+    for (i, line) in enumerate(mol2_str.splitlines()):
+        if line.startswith('@ATOM'):
+            container, line_reading_fct, read_lines = atoms, atom_for_atom_line, True
+        elif line.startswith('@BOND'):
+            container, line_reading_fct, read_lines = bonds, bond_for_atom_line, True
+        elif line.startswith('@'):
+            read_lines = False
+        else:
+            if read_lines:
+                container.append(line_reading_fct(line))
+
+    return Molecule(
+        [atom for (atom, _) in atoms],
+        [bond for (bond, _) in bonds],
+        formal_charges={atom.index: round(partial_charge) for (atom, partial_charge) in atoms},
+        bond_orders={bond: bond_order for (bond, bond_order) in bonds},
+    )
+
+
 if __name__ == '__main__':
-    A = '''HEADER    UNCLASSIFIED                            10-Sep-17
+    TEST_PDB = '''HEADER    UNCLASSIFIED                            10-Sep-17
     TITLE     ALL ATOM STRUCTURE FOR MOLECULE UNK                                   
     AUTHOR    GROMOS AUTOMATIC TOPOLOGY BUILDER REVISION 2017-07-03 14:53:07
     AUTHOR   2  http://compbio.biosci.uq.edu.au/atb
@@ -1488,7 +1543,42 @@ if __name__ == '__main__':
     CONECT   16    5   14   17
     CONECT   17   16
     END'''
-    molecule = molecule_from_pdb_str(A)
+    molecule = molecule_from_pdb_str(TEST_PDB)
     molecule.assign_bond_orders_and_charges_with_ILP()
     print(molecule.charges, molecule.non_bonded_electrons, molecule.bond_orders)
     print(molecule.mol2())
+
+    TEST_MOL2 = '''@MOLECULE
+AGLYSL01
+   10     9    1     0    0
+SMALL
+USER_CHARGES
+@ATOM
+   1 C1      -1.6234     1.6965     8.8431 C.3      1  AGLY  0.3310
+   2 C2      -1.5438     0.1710     8.8960 C.2      1  AGLY  0.6590
+   3 H1      -1.5827     1.7640     6.8094 H        1  AGLY  0.3600
+   4 H3      -0.1271     1.8630     7.4736 H        1  AGLY  0.3600
+   5 H5      -2.6707     1.9987     8.9343 H        1  AGLY  0.0000
+   6 H6      -1.0462     2.1092     9.6756 H        1  AGLY  0.0000
+   7 H7      -2.3655     0.3289    10.6732 H        1  AGLY  0.5000
+   8 N1      -1.0818     2.2182     7.5784 N.3      1  AGLY -0.9900
+   9 O5      -2.0344    -0.3437    10.0478 O.3      1  AGLY -0.6500
+  10 O6      -1.0893    -0.5326     8.0048 O.2      1  AGLY -0.5700
+@BOND
+   1    1    2 1 
+   2    1    5 1 
+   3    1    6 1 
+   4    1    8 1 
+   5    2    9 1 
+   6    2   10 2 
+   7    3    8 1 
+   8    4    8 1 
+   9    7    9 1 
+@SUBSTRUCTURE
+   1  AGLY    1
+@COMMENT
+COMMENT AMMONIUM GLYCINIUM SULFATE (NEUTRON STUDY) PEPSEQ A=1 GLY'''
+
+    molecule = molecule_from_mol2_str(TEST_MOL2)
+    print(molecule)
+    molecule.write_graph('TEST')
