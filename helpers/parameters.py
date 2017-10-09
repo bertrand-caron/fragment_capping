@@ -42,13 +42,6 @@ ELECTRONEGATIVITIES = {
     'RB': 0.82, 'SR': 0.95, 'IN': 1.78, 'SN': 1.96, 'SB': 2.05, 'TE': 2.10, 'I':  2.66, 'XE': 2.60,
 }
 
-
-def can_atom_have_nonbonded_electrons(atom: Atom) -> Atom:
-    if atom.element in {'C'}:
-        return False
-    else:
-        return True
-
 MIN_ABSOLUTE_CHARGE, MAX_ABSOLUTE_CHARGE = 0, 9
 MIN_BOND_ORDER, MAX_BOND_ORDER = 1, 3
 MAX_NONBONDED_ELECTRONS = 18
