@@ -12,6 +12,7 @@ from math import sqrt
 from fragment_capping.helpers.types_helpers import Fragment, ATB_Molid, Atom, FRAGMENT_CAPPING_DIR, Bond, ATOM_INDEX
 from fragment_capping.helpers.parameters import FULL_VALENCES, POSSIBLE_CHARGES, get_capping_options, new_atom_for_capping_strategy, Capping_Strategy, possible_bond_order_for_atom_pair, min_valence, max_valence, coordinates_n_angstroms_away_from, possible_charge_for_atom, ALL_ELEMENTS, electronegativity_spread, ELECTRONEGATIVITIES, VALENCE_ELECTRONS, MIN_ABSOLUTE_CHARGE, MAX_ABSOLUTE_CHARGE, MIN_BOND_ORDER, MAX_BOND_ORDER, MUST_BE_INT, MAX_NONBONDED_ELECTRONS, NO_CAP, ELECTRONS_PER_BOND
 from fragment_capping.helpers.babel import energy_minimised_pdb
+from fragment_capping.helpers.rings import bonds_for_ring
 
 DRAW_ALL_POSSIBLE_GRAPHS = False
 
@@ -1139,20 +1140,17 @@ class Molecule:
         write_to_debug(debug, 'non_bonded_electrons', self.non_bonded_electrons)
         self.assign_aromatic_bonds()
 
-    def assign_aromatic_bonds(self):
+    def rings(self) -> List[Any]:
         from networkx import Graph, cycle_basis
 
         graph = Graph()
         graph.add_nodes_from([atom.index for atom in self.sorted_atoms()])
         graph.add_edges_from([tuple(bond) for bond in self.bonds])
 
-        rings = list(map(tuple, cycle_basis(graph)))
+        return list(map(tuple, cycle_basis(graph)))
 
-        def bonds_for_ring(ring: List[ATOM_INDEX]) -> List[Bond]:
-            return [
-                frozenset(atom_indices)
-                for atom_indices in zip(ring, ring[1:] + (ring[0],))
-            ]
+    def assign_aromatic_bonds(self):
+        rings = self.rings()
 
         bonds_for_rings = {
             ring: bonds_for_ring(ring)
