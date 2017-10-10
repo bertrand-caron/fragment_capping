@@ -87,7 +87,7 @@ class Molecule:
 
         self.bond_orders, self.formal_charges = bond_orders, formal_charges
         self.previously_uncapped = set()
-        self.aromatic_bonds = None
+        self.aromatic_bonds, self.aromatic_rings = (None, None)
         self.non_bonded_electrons = None
 
     def atom_desc(self, atom: Atom):
@@ -575,7 +575,15 @@ class Molecule:
         best_molecule = possible_capped_molecules[0]
         return best_molecule
 
-    def write_graph(self, unique_id: Union[str, int], graph_kwargs: Dict[str, Any] = {}, output_size: Optional[Tuple[int, int]] = None, g: Optional[Any] = None, pos: Optional[PropertyMap] = None, **kwargs: Dict[str, Any]) -> Tuple[str, PropertyMap]:
+    def write_graph(
+        self,
+        unique_id: Union[str, int],
+        graph_kwargs: Dict[str, Any] = {},
+        output_size: Optional[Tuple[int, int]] = None,
+        g: Optional[Any] = None,
+        pos: Optional[PropertyMap] = None,
+        **kwargs: Dict[str, Any]
+    ) -> Tuple[str, PropertyMap]:
         if output_size is None:
             output_size = [int(sqrt(len(self.atoms) / 3) * 300)] * 2
 
@@ -818,12 +826,12 @@ class Molecule:
             else:
                 charge = self.formal_charges[atom_index]
                 charge_str = (str(abs(charge)) + ('-' if charge < 0 else '+')) if charge != 0 else ''
-            vertex_types[v] = '{element}{valence}{charge_str}{index}'.format(
-                element=atom.element,
-                valence=atom.valence if self.use_neighbour_valences else '',
-                charge_str=(' ' if charge_str else '') + charge_str,
-                index=' ({0})'.format(atom.index) if include_atom_index else '',
-            )
+                vertex_types[v] = '{element}{valence}{charge_str}{index}'.format(
+                    element=atom.element,
+                    valence=atom.valence if self.use_neighbour_valences else '',
+                    charge_str=(' ' if charge_str else '') + charge_str,
+                    index=' ({0})'.format(atom.index) if include_atom_index else '',
+                )
             if atom.index in self.previously_uncapped:
                 vertex_colors[v] = '#90EE90' # Green
             elif atom.capped:
@@ -1043,8 +1051,15 @@ class Molecule:
                 )
             }
 
-    def assign_bond_orders_and_charges_with_ILP(self, enforce_octet_rule: bool = True, allow_radicals: bool = False, debug: Optional[TextIO] = None) -> None:
+    def assign_bond_orders_and_charges_with_ILP(
+        self,
+        enforce_octet_rule: bool = True,
+        allow_radicals: bool = False,
+        debug: Optional[TextIO] = None,
+        bond_order_constraints: List[Tuple[Bond, int]] = [],
+    ) -> None:
         from pulp import LpProblem, LpMinimize, LpInteger, LpVariable, LpBinary, LpStatus
+        from pulp.solvers import PulpSolverError
 
         problem = LpProblem("Lewis problem (bond order and charge assignment) for molecule {0}".format(self.name), LpMinimize)
 
@@ -1105,10 +1120,13 @@ class Molecule:
                         'Octet for atom {element}_{index}'.format(element=atom.element, index=atom.index),
                     )
 
+        for (bond, bond_order) in bond_order_constraints:
+            problem += bond_orders[frozenset(bond)] == bond_order, 'Constraint bond {0} == {1}'.format(bond, bond_order)
+
         try:
             problem.sequentialSolve(OBJECTIVES)
             assert problem.status == 1, (self.name, LpStatus[problem.status])
-        except Exception as e:
+        except (AssertionError, PulpSolverError) as e:
             problem.writeLP('debug.lp')
             self.write_graph('DEBUG', output_size=(1000, 1000))
             print('Failed LP written to "debug.lp"')
@@ -1175,9 +1193,10 @@ class Molecule:
             else:
                 return is_hucklel_compatible(bond_orders)
 
-        self.aromatic_bonds = set()
+        self.aromatic_rings, self.aromatic_bonds = set(), set()
         for ring in rings:
             if is_bond_sequence_aromatic(bond_orders_for_rings[ring]):
+                self.aromatic_rings.add(ring)
                 for bond in bonds_for_rings[ring]:
                     self.aromatic_bonds.add(bond)
 
