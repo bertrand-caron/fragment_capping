@@ -21,6 +21,8 @@ DESC = lambda x: -x
 
 MAX, MIN = (lambda x: -x, lambda x: x)
 
+PropertyMap = Any
+
 class No_Charges_And_Bond_Orders(Exception):
     pass
 
@@ -117,7 +119,7 @@ class Molecule:
         except No_Charges_And_Bond_Orders:
             netcharge = None
 
-        return 'Molecule(atoms={0}, bonds={1}, formula="{2}", netcharge={3}, charges={4}, bond_orders={5}, non_bonded_electrons={6})'.format(
+        return 'Molecule(atoms={0}, bonds={1}, formula="{2}", netcharge={3}, charges={4}, bond_orders={5}, non_bonded_electrons={6}, name={7})'.format(
             self.atoms,
             self.bonds,
             self.formula(charge=False),
@@ -125,6 +127,7 @@ class Molecule:
             self.formal_charges,
             self.bond_orders,
             self.non_bonded_electrons,
+            self.name,
         )
 
     def add_atom(self, atom: Atom, bonded_to: Optional[List[int]] = None) -> int:
@@ -571,17 +574,23 @@ class Molecule:
         best_molecule = possible_capped_molecules[0]
         return best_molecule
 
-    def write_graph(self, unique_id: Union[str, int], graph_kwargs: Dict[str, Any] = {}, output_size: Optional[Tuple[int, int]] = None, **kwargs: Dict[str, Any]) -> str:
+    def write_graph(self, unique_id: Union[str, int], graph_kwargs: Dict[str, Any] = {}, output_size: Optional[Tuple[int, int]] = None, g: Optional[Any] = None, pos: Optional[PropertyMap] = None, **kwargs: Dict[str, Any]) -> Tuple[str, PropertyMap]:
         if output_size is None:
             output_size = [int(sqrt(len(self.atoms) / 3) * 300)] * 2
 
         graph_filepath = join(FRAGMENT_CAPPING_DIR, 'graphs' ,'_'.join((self.name, str(unique_id))) + '.png')
         try:
             from chem_graph_tool.pdb import graph_from_pdb
-            from chem_graph_tool.moieties import draw_graph
-            graph = self.graph(**graph_kwargs)
+            from chem_graph_tool.moieties import draw_graph, sfdp_layout
+            graph = self.graph(g=g, **graph_kwargs)
+
+            if pos is None:
+                pos = sfdp_layout(graph)
+            assert pos is not None, pos
+
             draw_graph(
                 graph,
+                pos=pos,
                 fnme=graph_filepath,
                 force_regen=True,
                 **{**{'output_size': output_size}, **kwargs},
@@ -593,7 +602,7 @@ class Molecule:
                 ),
             )
             raise
-        return graph_filepath
+        return (graph_filepath, graph, pos)
 
     def formula(self, charge: bool = False) -> str:
         elements = [atom.element for atom in self.atoms.values()]
@@ -768,26 +777,40 @@ class Molecule:
     def inchi(self) -> str:
         return self.representation('inchi')
 
-    def graph(self, include_atom_index: bool = True) -> Any:
+    def graph(self, g: Optional[Any] = None, include_atom_index: bool = True) -> Any:
         try:
             from graph_tool.all import Graph
         except:
             return None
 
-        g = Graph(directed=False)
+        if g is None:
+            g = Graph(directed=False)
 
-        vertex_types = g.new_vertex_property("string")
-        g.vertex_properties['type'] = vertex_types
+            vertex_types = g.new_vertex_property("string")
+            g.vertex_properties['type'] = vertex_types
 
-        edge_types = g.new_edge_property("string")
-        g.edge_properties['type'] = edge_types
+            edge_types = g.new_edge_property("string")
+            g.edge_properties['type'] = edge_types
 
-        vertex_colors = g.new_vertex_property("string")
-        g.vertex_properties['color'] = vertex_colors
+            vertex_colors = g.new_vertex_property("string")
+            g.vertex_properties['color'] = vertex_colors
 
-        vertices = {}
+            self._vertices = {}
+            for (atom_index, atom) in sorted(self.atoms.items()):
+                v = g.add_vertex()
+                self._vertices[atom_index] = v
+
+            self._edges = {}
+            for bond in self.bonds:
+                (i, j) = bond
+                e = g.add_edge(self._vertices[i], self._vertices[j])
+                self._edges[bond] = e
+        else:
+            (vertex_types, vertex_colors) = map(lambda type_str: g.vertex_properties[type_str], ['type', 'color'])
+            (edge_types,) = map(lambda type_str: g.edge_properties[type_str], ['type'])
+
         for (atom_index, atom) in sorted(self.atoms.items()):
-            v = g.add_vertex()
+            v = self._vertices[atom_index]
             if self.formal_charges is None:
                 possible_charges = possible_charge_for_atom(atom)
                 charge_str = str(possible_charges).replace(' ', '') if len(possible_charges) > 1 else ''
@@ -806,11 +829,9 @@ class Molecule:
                 vertex_colors[v] = '#EEEEEE' # Grey
             else:
                 vertex_colors[v] = '#FF91A4' # Red
-            vertices[atom_index] = v
 
         for bond in self.bonds:
-            (i, j) = bond
-            e = g.add_edge(vertices[i], vertices[j])
+            e = self._edges[bond]
             if self.bond_orders is None:
                 possible_bond_orders = possible_bond_order_for_atom_pair((self.atoms[i], self.atoms[j]))
                 edge_text = str(possible_bond_orders)[1:-1] if len(possible_bond_orders) > 1 else ''
@@ -1066,7 +1087,7 @@ class Molecule:
         ]
 
         if self.net_charge is not None:
-            problem += sum(charges.values()) == self.net_charge
+            problem += sum(charges.values()) == self.net_charge, 'Total net charge'
 
         for atom in self.atoms.values():
             problem += charges[atom.index] == VALENCE_ELECTRONS[atom.element] - sum([bond_orders[bond] for bond in self.bonds if atom.index in bond]) - ELECTRON_MULTIPLIER * non_bonded_electrons[atom.index], '{element}_{index}'.format(element=atom.element, index=atom.index)
@@ -1078,10 +1099,19 @@ class Molecule:
 
             if enforce_octet_rule:
                 if atom.element not in {'B', 'BE', 'P', 'S'}:
-                    problem += ELECTRONS_PER_BOND * sum([bond_orders[bond] for bond in self.bonds if atom.index in bond]) + ELECTRON_MULTIPLIER * non_bonded_electrons[atom.index] == (2 if atom.element in {'H', 'HE'} else 8)
+                    problem += (
+                        ELECTRONS_PER_BOND * sum([bond_orders[bond] for bond in self.bonds if atom.index in bond]) + ELECTRON_MULTIPLIER * non_bonded_electrons[atom.index] == (2 if atom.element in {'H', 'HE'} else 8),
+                        'Octet for atom {element}_{index}'.format(element=atom.element, index=atom.index),
+                    )
 
-        problem.sequentialSolve(OBJECTIVES)
-        assert problem.status == 1, (self.name, LpStatus[problem.status])
+        try:
+            problem.sequentialSolve(OBJECTIVES)
+            assert problem.status == 1, (self.name, LpStatus[problem.status])
+        except Exception as e:
+            problem.writeLP('debug.lp')
+            self.write_graph('DEBUG', output_size=(1000, 1000))
+            print('Failed LP written to "debug.lp"')
+            raise
 
         self.formal_charges, self.bond_orders, self.non_bonded_electrons = {}, {}, {}
 
@@ -1356,7 +1386,10 @@ class Molecule:
 
             if enforce_octet_rule:
                 if atom.element not in {'B', 'BE', 'P', 'S'}:
-                    problem += ELECTRONS_PER_BOND * sum([bond_orders[bond] for bond in self.bonds if atom.index in bond]) + non_bonded_electrons[atom.index] == (2 if atom.element in {'H', 'HE'} else 8)
+                    problem += (
+                        ELECTRONS_PER_BOND * sum([bond_orders[bond] for bond in self.bonds if atom.index in bond]) + ELECTRON_MULTIPLIER * non_bonded_electrons[atom.index] == (2 if atom.element in {'H', 'HE'} else 8),
+                        'Octet for atom {element}_{index}'.format(element=atom.element, index=atom.index),
+                    )
 
         is_capping_bond = lambda bond: bond & capping_atom_ids != set()
         capping_atom_for_bond = lambda atom_index, bond: list({atom.index} & bond)[0]
@@ -1364,8 +1397,14 @@ class Molecule:
         for atom_index in capping_atom_ids:
             problem += keep_cap[atom_index] <= bond_orders[bond_for_capping_atom_id(atom_index)]
 
-        problem.sequentialSolve(OBJECTIVES)
-        assert problem.status == 1, (self.name, LpStatus[problem.status])
+        try:
+            problem.sequentialSolve(OBJECTIVES)
+            assert problem.status == 1, (self.name, LpStatus[problem.status])
+        except Exception as e:
+            problem.writeLP('debug.lp')
+            self.write_graph('DEBUG', output_size=(1000, 1000))
+            print('Failed LP written to "debug.lp"')
+            raise
 
         self.formal_charges, self.bond_orders, self.non_bonded_electrons = {}, {}, {}
 
@@ -1462,7 +1501,8 @@ def molecule_from_pdb_str(pdb_str: str, **kwargs: Dict[str, Any]) -> Molecule:
     )
 
 def molecule_from_mol2_str(mol2_str: str, **kwargs: Dict[str, Any]) -> Molecule:
-    assert mol2_str.count('@MOLECULE') == 1, 'Only one molecule at a time'
+    assert mol2_str.startswith('@<TRIPOS>MOLECULE'), 'Error: MOL2 file does not start with "@<TRIPOS>MOLECULE"'
+    assert mol2_str.count('@<TRIPOS>MOLECULE') == 1, 'Only one molecule at a time'
 
     def atom_for_atom_line(line: str) -> Tuple[Atom, float]:
         index_str, name_str, x, y, z, sybil_atom_type, _, _, partial_charge = line.split()
@@ -1479,15 +1519,24 @@ def molecule_from_mol2_str(mol2_str: str, **kwargs: Dict[str, Any]) -> Molecule:
             float(partial_charge),
         )
 
+    AROMATIC_BOND, AMIDE_BOND = 'ar', 'am'
     def bond_for_atom_line(line: str) -> Tuple[Bond, int]:
-        bond_label, atom_id_1, atom_id_2, bond_order = map(int, line.split())
-        return (frozenset([atom_id_1, atom_id_2]), bond_order)
+        bond_label, atom_id_1, atom_id_2, bond_order_str = line.split()
+        if bond_order_str == AROMATIC_BOND:
+            bond_order = 1.5
+        elif bond_order_str == AMIDE_BOND:
+            bond_order = 1
+        else:
+            bond_order = int(bond_order_str)
+        return (frozenset([int(atom_id_1), int(atom_id_2)]), bond_order)
 
     read_lines, atoms, bonds = False, [], []
     for (i, line) in enumerate(mol2_str.splitlines()):
-        if line.startswith('@ATOM'):
+        if i == 1:
+            molecule_name = line
+        elif line.startswith('@<TRIPOS>ATOM'):
             container, line_reading_fct, read_lines = atoms, atom_for_atom_line, True
-        elif line.startswith('@BOND'):
+        elif line.startswith('@<TRIPOS>BOND'):
             container, line_reading_fct, read_lines = bonds, bond_for_atom_line, True
         elif line.startswith('@'):
             read_lines = False
@@ -1495,13 +1544,17 @@ def molecule_from_mol2_str(mol2_str: str, **kwargs: Dict[str, Any]) -> Molecule:
             if read_lines:
                 container.append(line_reading_fct(line))
 
+    total_net_charge = sum(partial_charge for (atom, partial_charge) in atoms)
+    assert abs(total_net_charge - round(total_net_charge)) <= 0.01, total_net_charge
+
     return Molecule(
         [atom for (atom, _) in atoms],
         [bond for (bond, _) in bonds],
         formal_charges={atom.index: round(partial_charge) for (atom, partial_charge) in atoms},
         bond_orders={bond: bond_order for (bond, bond_order) in bonds},
+        name=molecule_name,
+        net_charge=round(total_net_charge),
     )
-
 
 if __name__ == '__main__':
     TEST_PDB = '''HEADER    UNCLASSIFIED                            10-Sep-17
@@ -1544,16 +1597,16 @@ if __name__ == '__main__':
     CONECT   17   16
     END'''
     molecule = molecule_from_pdb_str(TEST_PDB)
-    molecule.assign_bond_orders_and_charges_with_ILP()
-    print(molecule.charges, molecule.non_bonded_electrons, molecule.bond_orders)
-    print(molecule.mol2())
+    #molecule.assign_bond_orders_and_charges_with_ILP()
+    #print(molecule.charges, molecule.non_bonded_electrons, molecule.bond_orders)
+    #print(molecule.mol2())
 
-    TEST_MOL2 = '''@MOLECULE
+    TEST_MOL2 = '''@<TRIPOS>MOLECULE
 AGLYSL01
    10     9    1     0    0
 SMALL
 USER_CHARGES
-@ATOM
+@<TRIPOS>ATOM
    1 C1      -1.6234     1.6965     8.8431 C.3      1  AGLY  0.3310
    2 C2      -1.5438     0.1710     8.8960 C.2      1  AGLY  0.6590
    3 H1      -1.5827     1.7640     6.8094 H        1  AGLY  0.3600
@@ -1564,7 +1617,7 @@ USER_CHARGES
    8 N1      -1.0818     2.2182     7.5784 N.3      1  AGLY -0.9900
    9 O5      -2.0344    -0.3437    10.0478 O.3      1  AGLY -0.6500
   10 O6      -1.0893    -0.5326     8.0048 O.2      1  AGLY -0.5700
-@BOND
+@<TRIPOS>BOND
    1    1    2 1 
    2    1    5 1 
    3    1    6 1 
@@ -1574,11 +1627,13 @@ USER_CHARGES
    7    3    8 1 
    8    4    8 1 
    9    7    9 1 
-@SUBSTRUCTURE
+@<TRIPOS>SUBSTRUCTURE
    1  AGLY    1
-@COMMENT
+@<TRIPOS>COMMENT
 COMMENT AMMONIUM GLYCINIUM SULFATE (NEUTRON STUDY) PEPSEQ A=1 GLY'''
 
     molecule = molecule_from_mol2_str(TEST_MOL2)
     print(molecule)
-    molecule.write_graph('TEST')
+    molecule.write_graph('RAW')
+    molecule.assign_bond_orders_and_charges_with_ILP()
+    molecule.write_graph('ILP')

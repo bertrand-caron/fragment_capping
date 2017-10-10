@@ -17,3 +17,11 @@ errors:
 
 protein_fragment_molecules.png: molecule_for_fragment.py
 	python3 $<
+
+MMFF94.tar.gz:
+	wget http://server.ccl.net/cca/data/MMFF94/MMFF94.tar.gz -O $@
+
+MMFF94: MMFF94.tar.gz
+	mkdir $@
+	gunzip -c MMFF94.tar.gz | tar xvo --directory MMFF94
+.PHONY: MMFF94
