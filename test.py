@@ -5,6 +5,28 @@ from fragment_capping.helpers.molecule import Molecule
 
 CAPPING_FUNCTION_NAME = 'get_best_capped_molecule_with_ILP'
 
+def example_0() -> None:
+    molecule = Molecule(
+        [
+            Atom(index=1, element='C', valence=3, capped=True, coordinates=None),
+            Atom(index=2, element='O', valence=1, capped=True, coordinates=None),
+            Atom(index=3, element='O', valence=2, capped=True, coordinates=None),
+            Atom(index=4, element='H', valence=1, capped=True, coordinates=None),
+            Atom(index=5, element='H', valence=1, capped=True, coordinates=None),
+        ],
+        [
+            (1, 2),
+            (1, 3),
+            (3, 4),
+            (1, 5),
+        ],
+        name='methoanoic acid',
+    )
+
+    molecule.write_graph('raw_molecule')
+    molecule.assign_bond_orders_and_charges_with_ILP()
+    molecule.write_graph('molecule_with_electrons')
+
 def example_1() -> None:
     uncapped_molecule = Molecule(
         {
@@ -621,6 +643,7 @@ def example_taxol_core() -> None:
     assert capped_molecule.formula(charge=True) == 'C16H26O5', capped_molecule.formula(charge=True)
 
 ALL_EXAMPLES = [
+    example_0,
     example_1,
     example_2,
     example_3,

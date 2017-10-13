@@ -644,6 +644,9 @@ class Molecule:
     def n_atoms(self) -> int:
         return len(self.atoms)
 
+    def n_electrons(self) -> int:
+        return 2 * sum(self.bond_orders.values()) + sum(self.non_bonded_electrons.values())
+
     def energy_minimised_pdb(self, **kwargs: Dict[str, Any]) -> str:
         return energy_minimised_pdb(
             pdb_str=self.dummy_pdb(),
@@ -825,13 +828,13 @@ class Molecule:
                 charge_str = str(possible_charges).replace(' ', '') if len(possible_charges) > 1 else ''
             else:
                 charge = self.formal_charges[atom_index]
-                charge_str = (str(abs(charge)) + ('-' if charge < 0 else '+')) if charge != 0 else ''
-                vertex_types[v] = '{element}{valence}{charge_str}{index}'.format(
-                    element=atom.element,
-                    valence=atom.valence if self.use_neighbour_valences else '',
-                    charge_str=(' ' if charge_str else '') + charge_str,
-                    index=' ({0})'.format(atom.index) if include_atom_index else '',
-                )
+                charge_str = ((str(abs(charge)) if abs(charge) != 1 else '') + ('-' if charge < 0 else '+')) if charge != 0 else ''
+            vertex_types[v] = '{element}{valence}{charge_str}{index}'.format(
+                element=atom.element,
+                valence=atom.valence if self.use_neighbour_valences else '',
+                charge_str=('' if charge_str else '') + charge_str,
+                index=' ({0})'.format(atom.index) if include_atom_index else '',
+            )
             if atom.index in self.previously_uncapped:
                 vertex_colors[v] = '#90EE90' # Green
             elif atom.capped:
