@@ -10,7 +10,7 @@ from sys import stderr
 from math import sqrt
 
 from fragment_capping.helpers.types_helpers import Fragment, ATB_Molid, Atom, FRAGMENT_CAPPING_DIR, Bond, ATOM_INDEX
-from fragment_capping.helpers.parameters import FULL_VALENCES, POSSIBLE_CHARGES, get_capping_options, new_atom_for_capping_strategy, Capping_Strategy, possible_bond_order_for_atom_pair, min_valence, max_valence, coordinates_n_angstroms_away_from, possible_charge_for_atom, ALL_ELEMENTS, electronegativity_spread, ELECTRONEGATIVITIES, VALENCE_ELECTRONS, MIN_ABSOLUTE_CHARGE, MAX_ABSOLUTE_CHARGE, MIN_BOND_ORDER, MAX_BOND_ORDER, MUST_BE_INT, MAX_NONBONDED_ELECTRONS, NO_CAP, ELECTRONS_PER_BOND
+from fragment_capping.helpers.parameters import FULL_VALENCES, POSSIBLE_CHARGES, new_atom_for_capping_strategy, Capping_Strategy, possible_bond_order_for_atom_pair, min_valence, max_valence, coordinates_n_angstroms_away_from, possible_charge_for_atom, ALL_ELEMENTS, electronegativity_spread, ELECTRONEGATIVITIES, VALENCE_ELECTRONS, MIN_ABSOLUTE_CHARGE, MAX_ABSOLUTE_CHARGE, MIN_BOND_ORDER, MAX_BOND_ORDER, MUST_BE_INT, MAX_NONBONDED_ELECTRONS, NO_CAP, ELECTRONS_PER_BOND, ALL_CAPPING_OPTIONS
 from fragment_capping.helpers.babel import energy_minimised_pdb
 from fragment_capping.helpers.rings import bonds_for_ring
 
@@ -249,12 +249,14 @@ class Molecule:
             raise
 
     def get_best_capped_molecule_with_ILP(self, draw_all_possible_graphs: bool = DRAW_ALL_POSSIBLE_GRAPHS, enforce_octet_rule: bool = True, allow_radicals: bool = False, debug: Optional[TextIO] = None):
-        capping_options = get_capping_options(self.use_neighbour_valences)
-
         neighbour_counts = self.neighbours_for_atoms()
 
+        from pprint import pprint
+        pprint(ALL_CAPPING_OPTIONS)
         def keep_capping_strategy_for_atom(capping_strategy: Capping_Strategy, atom: Atom):
-            if self.use_neighbour_valences:
+            if atom.valence is not None:
+                if neighbour_counts[atom.index] + new_atom_for_capping_strategy(capping_strategy) == atom.valence:
+                    print(atom, capping_strategy)
                 return neighbour_counts[atom.index] + new_atom_for_capping_strategy(capping_strategy) == atom.valence
             else:
                 return min_valence(atom) <= neighbour_counts[atom.index] + new_atom_for_capping_strategy(capping_strategy) <= max_valence(atom)
@@ -262,7 +264,7 @@ class Molecule:
         def possible_capping_strategies_for_atom(atom: Atom) -> List[Capping_Strategy]:
             if debug is not None:
                 write_to_debug(debug, atom)
-                for capping_strategy in capping_options[self.atom_desc(atom)]:
+                for capping_strategy in ALL_CAPPING_OPTIONS[self.atom_desc(atom)]:
                     write_to_debug(
                         debug, 
                         capping_strategy,
@@ -271,7 +273,7 @@ class Molecule:
                     )
             return [
                 capping_strategy
-                for capping_strategy in capping_options[self.atom_desc(atom)]
+                for capping_strategy in ALL_CAPPING_OPTIONS[self.atom_desc(atom)]
                 if keep_capping_strategy_for_atom(capping_strategy, atom)
             ]
 
@@ -330,9 +332,9 @@ class Molecule:
                 fragment_scores[uncapped_atom.index, i] = len(capping_atoms_for[uncapped_atom.index, i])
 
                 for capping_atom in new_atoms:
-                    # Add counter-charge variable S_ij for every atom of the capping strategy
+                    # Add counter-charge variable S_i for every atom of the capping strategy
                     counter_charges[capping_atom.index] = LpVariable(
-                        "S_{i},{j}".format(i=uncapped_atom.index, j=capping_atom.index), #FIXME
+                        "S_{i}".format(i=capping_atom.index),
                         -MAX_ABSOLUTE_CHARGE,
                         MAX_ABSOLUTE_CHARGE,
                         LpInteger,
@@ -430,6 +432,7 @@ class Molecule:
         try:
             problem.sequentialSolve(OBJECTIVES)
             assert problem.status == 1, (self.name, LpStatus[problem.status])
+            #assert False
         except Exception as e:
             problem.writeLP('debug.lp')
             self.write_graph('DEBUG', output_size=(1000, 1000))
@@ -462,7 +465,8 @@ class Molecule:
                 if MUST_BE_INT(v.varValue) == 0 and DELETE_FAILED_CAPS:
                     atoms_to_remove.add((uncapped_atom_id, capping_strategy_id))
             elif variable_type == 'S':
-                pass
+                capping_atom_id = int(variable_substr)
+                print(capping_atom_id, v.varValue)
             else:
                 raise Exception('Unknown variable type: {0}'.format(variable_type))
 
@@ -481,8 +485,6 @@ class Molecule:
         return self
 
     def get_best_capped_molecule(self, draw_all_possible_graphs: bool = DRAW_ALL_POSSIBLE_GRAPHS, debug: Optional[TextIO] = None, use_ILP: bool = True, **kwargs: Dict[str, Any]):
-        capping_options = get_capping_options(self.use_neighbour_valences)
-
         neighbour_counts = self.neighbours_for_atoms()
 
         def keep_capping_strategy_for_atom(capping_strategy: Capping_Strategy, atom: Atom):
@@ -494,7 +496,7 @@ class Molecule:
         def possible_capping_strategies_for_atom(atom: Atom) -> List[Capping_Strategy]:
             if debug is not None:
                 write_to_debug(debug, atom)
-                for capping_strategy in capping_options[self.atom_desc(atom)]:
+                for capping_strategy in ALL_CAPPING_OPTIONS[self.atom_desc(atom)]:
                     write_to_debug(
                         debug, 
                         capping_strategy,
@@ -503,7 +505,7 @@ class Molecule:
                     )
             return [
                 capping_strategy
-                for capping_strategy in capping_options[self.atom_desc(atom)]
+                for capping_strategy in ALL_CAPPING_OPTIONS[self.atom_desc(atom)]
                 if keep_capping_strategy_for_atom(capping_strategy, atom)
             ]
 
@@ -540,7 +542,7 @@ class Molecule:
         write_to_debug(debug, 'atoms_need_capping: {0}'.format(atoms_need_capping))
         write_to_debug(debug, 'capping_schemes: {0}'.format(capping_schemes))
         write_to_debug(debug, 'capping_options: {0}'.format([
-            len(capping_options[self.atom_desc(atom)])
+            len(ALL_CAPPING_OPTIONS[self.atom_desc(atom)])
             for atom in atoms_need_capping
         ]))
 

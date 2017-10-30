@@ -216,30 +216,34 @@ def group_if_not_none(match: Any) -> Union[str, None]:
 def on_letters_of_dict_key(item: List[Any]) -> str:
     return group_if_not_none(match('[A-Z]+', item[0]))
 
-def get_capping_options(use_neighbour_valences: bool, debug: bool = False) -> Dict[str, List[Capping_Strategy]]:
-    if not use_neighbour_valences:
-        'Aggregate capping strategies for a given element.'
-        capping_options = dict(
-            [
-                (element, concat([x[1] for x in list(group)]))
-                for (element, group) in
-                groupby(
-                    sorted(
-                        INDIVIDUAL_CAPPING_OPTIONS.items(),
-                        key=on_letters_of_dict_key,
-                    ),
-                    key=on_letters_of_dict_key,
-                )
-            ]
-        )
-    else:
-        capping_options = INDIVIDUAL_CAPPING_OPTIONS
+def make_capping_strategy_hashable(capping_strategy: Capping_Strategy) -> Capping_Strategy:
+    return Capping_Strategy(
+        *map(
+            tuple,
+            capping_strategy,
+        ),
+    )
 
-    if debug:
-        print([(key, value) for (key, value) in list(INDIVIDUAL_CAPPING_OPTIONS.items())])
-        print([(key, value) for (key, value) in list(capping_options.items())])
+GROUPED_CAPPING_OPTIONS = {
+    element: reduce(
+        lambda acc, e: acc | set(e),
+        [x[1] for x in list(group)],
+        set(),
+    )
+    for (element, group) in
+    groupby(
+        sorted(
+            [(atom_desc, [make_capping_strategy_hashable(c) for c in C]) for (atom_desc, C) in INDIVIDUAL_CAPPING_OPTIONS.items()],
+            key=on_letters_of_dict_key,
+        ),
+        key=on_letters_of_dict_key,
+    )
+}
 
-    return capping_options
+ALL_CAPPING_OPTIONS = {
+        **INDIVIDUAL_CAPPING_OPTIONS,
+        **GROUPED_CAPPING_OPTIONS,
+}
 
 DOUBLE_BOND_ELEMENTS = [
     element
