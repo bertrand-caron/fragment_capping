@@ -144,6 +144,8 @@ class Molecule:
     def remove_atom_with_index(self, atom_index: int) -> None:
         del self.atoms[atom_index]
         self.bonds = [bond for bond in self.bonds if atom_index not in bond]
+        del self.formal_charges[atom_index]
+        del self.non_bonded_electrons[atom_index]
 
     def remove_atom(self, atom: Atom) -> None:
         return remove_atom_with_index(atom.index)
@@ -434,9 +436,10 @@ class Molecule:
             print('Failed LP written to "debug.lp"')
             raise
 
-        DELETE_FAILED_CAPS = True
+        DELETE_FAILED_CAPS = False
 
         self.formal_charges, self.bond_orders, self.non_bonded_electrons = {}, {}, {}
+        atoms_to_remove = set()
         for v in problem.variables():
             variable_type, variable_substr = v.name.split('_')
             if variable_type == 'C':
@@ -457,11 +460,15 @@ class Molecule:
             elif variable_type == 'F':
                 uncapped_atom_id, capping_strategy_id = map(int, variable_substr.split(','))
                 if MUST_BE_INT(v.varValue) == 0 and DELETE_FAILED_CAPS:
-                    self.remove_atoms(atom for atom in capping_atoms_for[uncapped_atom_id, capping_strategy_id])
+                    atoms_to_remove.add((uncapped_atom_id, capping_strategy_id))
             elif variable_type == 'S':
                 pass
             else:
                 raise Exception('Unknown variable type: {0}'.format(variable_type))
+
+        if DELETE_FAILED_CAPS:
+            for (uncapped_atom_id, capping_strategy_id) in atoms_to_remove:
+                self.remove_atoms(atom for atom in capping_atoms_for[uncapped_atom_id, capping_strategy_id])
 
         if not allow_radicals and False:
             assert all([nonbonded_electrons % 2 == 0 for nonbonded_electrons in self.non_bonded_electrons.values()]), {
@@ -470,7 +477,7 @@ class Molecule:
                 if electrons % 2 == 1
             }
 
-        #exit()
+        self.assert_molecule_coherence()
         return self
 
     def get_best_capped_molecule(self, draw_all_possible_graphs: bool = DRAW_ALL_POSSIBLE_GRAPHS, debug: Optional[TextIO] = None, use_ILP: bool = True, **kwargs: Dict[str, Any]):
@@ -829,10 +836,11 @@ class Molecule:
             else:
                 charge = self.formal_charges[atom_index]
                 charge_str = ((str(abs(charge)) if abs(charge) != 1 else '') + ('-' if charge < 0 else '+')) if charge != 0 else ''
-            vertex_types[v] = '{element}{valence}{charge_str}{index}'.format(
+            vertex_types[v] = '{element}{valence}{charge_str}{non_bonded_str}{index}'.format(
                 element=atom.element,
                 valence=atom.valence if self.use_neighbour_valences else '',
                 charge_str=('' if charge_str else '') + charge_str,
+                non_bonded_str=('*' * (self.non_bonded_electrons[atom_index] // 2) if self.non_bonded_electrons is not None else ''),
                 index=' ({0})'.format(atom.index) if include_atom_index else '',
             )
             if atom.index in self.previously_uncapped:
@@ -920,6 +928,12 @@ class Molecule:
             for (bond, bond_order) in best_bond_orders
         }
         self.assign_aromatic_bonds()
+
+    def assert_molecule_coherence(self) -> None:
+        bonded_atoms = reduce(lambda acc, e: acc | e, self.bonds, frozenset())
+        assert set(bonded_atoms) == set(self.atoms.keys()), set(bonded_atoms) ^ set(self.atoms.keys())
+        assert set(self.bonds) == set(self.bond_orders.keys()), set(self.bonds) ^ set(self.bond_orders.keys())
+        assert set(self.atoms.keys()) == set(self.formal_charges.keys()), set(self.atoms.keys()) ^ set(self.formal_charges.keys())
 
     def netcharge(self) -> int:
         try:
