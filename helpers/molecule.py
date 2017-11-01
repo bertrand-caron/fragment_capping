@@ -143,9 +143,12 @@ class Molecule:
 
     def remove_atom_with_index(self, atom_index: int) -> None:
         del self.atoms[atom_index]
-        self.bonds = [bond for bond in self.bonds if atom_index not in bond]
+        old_bonds = deepcopy(self.bonds)
+        self.bonds = {bond for bond in self.bonds if atom_index not in bond}
         del self.formal_charges[atom_index]
         del self.non_bonded_electrons[atom_index]
+        for bond in old_bonds - self.bonds:
+            del self.bond_orders[bond]
 
     def remove_atom(self, atom: Atom) -> None:
         return remove_atom_with_index(atom.index)
@@ -439,7 +442,7 @@ class Molecule:
             print('Failed LP written to "debug.lp"')
             raise
 
-        DELETE_FAILED_CAPS = False
+        DELETE_FAILED_CAPS = True
 
         self.formal_charges, self.bond_orders, self.non_bonded_electrons = {}, {}, {}
         atoms_to_remove = set()
