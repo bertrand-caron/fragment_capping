@@ -131,6 +131,9 @@ class Molecule:
             self.name,
         )
 
+    def __lt__(self, other) -> bool:
+        return self.name < other.name
+
     def add_atom(self, atom: Atom, bonded_to: Optional[List[int]] = None) -> int:
         highest_id = max(self.atoms.keys())
         atom_id = highest_id + 1
@@ -256,8 +259,9 @@ class Molecule:
 
         def keep_capping_strategy_for_atom(capping_strategy: Capping_Strategy, atom: Atom):
             if atom.valence is not None:
-                if neighbour_counts[atom.index] + new_atom_for_capping_strategy(capping_strategy) == atom.valence:
-                    print(atom, capping_strategy)
+                if False:
+                    if neighbour_counts[atom.index] + new_atom_for_capping_strategy(capping_strategy) == atom.valence:
+                        print(atom, capping_strategy)
                 return neighbour_counts[atom.index] + new_atom_for_capping_strategy(capping_strategy) == atom.valence
             else:
                 return min_valence(atom) <= neighbour_counts[atom.index] + new_atom_for_capping_strategy(capping_strategy) <= max_valence(atom)
@@ -312,7 +316,7 @@ class Molecule:
         ELECTRON_MULTIPLIER = (2 if not allow_radicals else 1)
 
         counter_charges = {}
-        fragment_switches, fragment_scores = {}, {}
+        fragment_switches, fragment_scores, fragment_H_scores = {}, {}, {}
         capping_atoms_for = {}
         new_bonds_sets = {}
         for uncapped_atom in atoms_need_capping:
@@ -331,6 +335,7 @@ class Molecule:
                 capping_atoms_for[uncapped_atom.index, i] = new_atoms
                 new_bonds_sets[uncapped_atom.index, i] = [bond for bond in new_bonds if uncapped_atom.index in bond]
                 fragment_scores[uncapped_atom.index, i] = len(capping_atoms_for[uncapped_atom.index, i])
+                fragment_H_scores[uncapped_atom.index, i] = len([atom for atom in capping_atoms_for[uncapped_atom.index, i] if atom.element == 'H'])
 
                 for capping_atom in new_atoms:
                     # Add counter-charge variable S_i for every atom of the capping strategy
@@ -346,10 +351,14 @@ class Molecule:
             # Only choose one capping strategy at a time
             problem += (lpSum(F_i for ((atom_id, _), F_i) in fragment_switches.items() if atom_id == uncapped_atom.index) == 1, 'Single capping strategy for atom {element}_{index}'.format(element=uncapped_atom.element, index=uncapped_atom.index))
 
+        if True:
+            self.write_graph('debug')
+
         charges = {
             atom.index: LpVariable("C_{i}".format(i=atom.index), -MAX_ABSOLUTE_CHARGE, MAX_ABSOLUTE_CHARGE, LpInteger)
             for atom in self.atoms.values()
         }
+        original_charges = list(charges.values())
 
         # Extra variable use to bind charges
         absolute_charges = {
@@ -391,6 +400,10 @@ class Molecule:
             MIN(lpSum(absolute_charges.values())),
         ]
 
+        H_size_objective = MAX(lpSum([F_i * fragment_H_scores[uncapped_atom_id, i] for ((uncapped_atom_id, i), F_i) in fragment_switches.items()]))
+        if sum([fragment_H_scores[uncapped_atom_id, i] for ((uncapped_atom_id, i), F_i) in fragment_switches.items()]) != 0:
+            OBJECTIVES.append(H_size_objective)
+
         total_size_objective = MIN(lpSum([F_i * fragment_scores[uncapped_atom_id, i] for ((uncapped_atom_id, i), F_i) in fragment_switches.items()]))
         if sum([fragment_scores[uncapped_atom_id, i] for ((uncapped_atom_id, i), F_i) in fragment_switches.items()]) != 0:
             OBJECTIVES.append(total_size_objective)
@@ -429,6 +442,11 @@ class Molecule:
                         ELECTRONS_PER_BOND * lpSum([bond_orders[bond] for bond in self.bonds if atom.index in bond]) + ELECTRON_MULTIPLIER * non_bonded_electrons[atom.index] == (2 if atom.element in {'H', 'HE'} else 8),
                         'Octet for atom {element}_{index}'.format(element=atom.element, index=atom.index),
                     )
+
+        if False:
+            for charge in original_charges:
+                print(charge)
+                problem += charge == 0
 
         try:
             problem.sequentialSolve(OBJECTIVES)
