@@ -254,8 +254,6 @@ class Molecule:
     def get_best_capped_molecule_with_ILP(self, draw_all_possible_graphs: bool = DRAW_ALL_POSSIBLE_GRAPHS, enforce_octet_rule: bool = True, allow_radicals: bool = False, debug: Optional[TextIO] = None):
         neighbour_counts = self.neighbours_for_atoms()
 
-        from pprint import pprint
-        pprint(ALL_CAPPING_OPTIONS)
         def keep_capping_strategy_for_atom(capping_strategy: Capping_Strategy, atom: Atom):
             if atom.valence is not None:
                 if neighbour_counts[atom.index] + new_atom_for_capping_strategy(capping_strategy) == atom.valence:
@@ -346,7 +344,7 @@ class Molecule:
                     problem += (counter_charges[capping_atom.index] >= -(1 - fragment_switches[uncapped_atom.index, i]) * MAX_ABSOLUTE_CHARGE, 'Minimum counter charge for capping atom {element}_{index}'.format(element=capping_atom.element, index=capping_atom.index))
 
             # Only choose one capping strategy at a time
-            problem += (sum(F_i for ((atom_id, _), F_i) in fragment_switches.items() if atom_id == uncapped_atom.index) == 1, 'Single capping strategy for atom {element}_{index}'.format(element=uncapped_atom.element, index=uncapped_atom.index))
+            problem += (lpSum(F_i for ((atom_id, _), F_i) in fragment_switches.items() if atom_id == uncapped_atom.index) == 1, 'Single capping strategy for atom {element}_{index}'.format(element=uncapped_atom.element, index=uncapped_atom.index))
 
         charges = {
             atom.index: LpVariable("C_{i}".format(i=atom.index), -MAX_ABSOLUTE_CHARGE, MAX_ABSOLUTE_CHARGE, LpInteger)
@@ -390,20 +388,20 @@ class Molecule:
                 problem += (bond_orders[new_bond] <= MAX_BOND_ORDER * fragment_switches[uncapped_atom_id, i], 'Maximum bond order for fragment bond {bond_key}'.format(bond_key=bond_key(new_bond)))
 
         OBJECTIVES = [
-            MIN(sum(absolute_charges.values())),
+            MIN(lpSum(absolute_charges.values())),
         ]
 
-        total_size_objective = MIN(sum([F_i * fragment_scores[uncapped_atom_id, i] for ((uncapped_atom_id, i), F_i) in fragment_switches.items()]))
-        if total_size_objective != 0:
+        total_size_objective = MIN(lpSum([F_i * fragment_scores[uncapped_atom_id, i] for ((uncapped_atom_id, i), F_i) in fragment_switches.items()]))
+        if sum([fragment_scores[uncapped_atom_id, i] for ((uncapped_atom_id, i), F_i) in fragment_switches.items()]) != 0:
             OBJECTIVES.append(total_size_objective)
 
         OBJECTIVES.extend([
-            MIN(sum([charge * ELECTRONEGATIVITIES[self.atoms[atom_id].element] for (atom_id, charge) in charges.items()])),
-            MIN(sum([bond_order * ELECTRONEGATIVITIES[self.atoms[atom_id].element] for (bond, bond_order) in bond_orders.items() for atom_id in bond])),
+            MIN(lpSum([charge * ELECTRONEGATIVITIES[self.atoms[atom_id].element] for (atom_id, charge) in charges.items()])),
+            MIN(lpSum([bond_order * ELECTRONEGATIVITIES[self.atoms[atom_id].element] for (bond, bond_order) in bond_orders.items() for atom_id in bond])),
         ])
 
         if self.net_charge is not None:
-            problem += (sum(charges.values()) == self.net_charge, 'Known net charge')
+            problem += (lpSum(charges.values()) == self.net_charge, 'Known net charge')
 
         for atom in self.atoms.values():
             problem += (
@@ -411,7 +409,7 @@ class Molecule:
                 ==
                 VALENCE_ELECTRONS[atom.element]
                 -
-                sum([bond_orders[bond] for bond in self.bonds if atom.index in bond])
+                lpSum([bond_orders[bond] for bond in self.bonds if atom.index in bond])
                 -
                 ELECTRON_MULTIPLIER * non_bonded_electrons[atom.index]
                 -
@@ -428,7 +426,7 @@ class Molecule:
             if enforce_octet_rule:
                 if atom.element not in {'B', 'BE', 'P', 'S'}:
                     problem += (
-                        ELECTRONS_PER_BOND * sum([bond_orders[bond] for bond in self.bonds if atom.index in bond]) + ELECTRON_MULTIPLIER * non_bonded_electrons[atom.index] == (2 if atom.element in {'H', 'HE'} else 8),
+                        ELECTRONS_PER_BOND * lpSum([bond_orders[bond] for bond in self.bonds if atom.index in bond]) + ELECTRON_MULTIPLIER * non_bonded_electrons[atom.index] == (2 if atom.element in {'H', 'HE'} else 8),
                         'Octet for atom {element}_{index}'.format(element=atom.element, index=atom.index),
                     )
 
@@ -469,7 +467,6 @@ class Molecule:
                     atoms_to_remove.add((uncapped_atom_id, capping_strategy_id))
             elif variable_type == 'S':
                 capping_atom_id = int(variable_substr)
-                print(capping_atom_id, v.varValue)
             else:
                 raise Exception('Unknown variable type: {0}'.format(variable_type))
 

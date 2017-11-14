@@ -1,5 +1,9 @@
 PYTHON_BIN_DIR = /usr/local/python35/bin
 
+test_capping:
+	python3 test_capping.py
+.PHONY: test_capping
+
 fragments: cache/protein_fragments.pickle
 	python3 molecule_for_fragment.py
 .PHONY: fragments
