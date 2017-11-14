@@ -351,6 +351,8 @@ class Molecule:
             # Only choose one capping strategy at a time
             problem += (lpSum(F_i for ((atom_id, _), F_i) in fragment_switches.items() if atom_id == uncapped_atom.index) == 1, 'Single capping strategy for atom {element}_{index}'.format(element=uncapped_atom.element, index=uncapped_atom.index))
 
+        all_capping_atoms = {atom for atoms in capping_atoms_for.values() for atom in atoms}
+
         if True:
             self.write_graph('debug')
 
@@ -436,17 +438,12 @@ class Molecule:
             problem += charges[atom.index] <= absolute_charges[atom.index], 'Absolute charge contraint 1 {i}'.format(i=atom.index)
             problem += -charges[atom.index] <= absolute_charges[atom.index], 'Absolute charge contraint 2 {i}'.format(i=atom.index)
 
-            if enforce_octet_rule:
+            if enforce_octet_rule and atom not in all_capping_atoms:
                 if atom.element not in {'B', 'BE', 'P', 'S'}:
                     problem += (
                         ELECTRONS_PER_BOND * lpSum([bond_orders[bond] for bond in self.bonds if atom.index in bond]) + ELECTRON_MULTIPLIER * non_bonded_electrons[atom.index] == (2 if atom.element in {'H', 'HE'} else 8),
                         'Octet for atom {element}_{index}'.format(element=atom.element, index=atom.index),
                     )
-
-        if False:
-            for charge in original_charges:
-                print(charge)
-                problem += charge == 0
 
         try:
             problem.sequentialSolve(OBJECTIVES)
