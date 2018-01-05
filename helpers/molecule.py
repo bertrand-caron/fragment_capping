@@ -268,10 +268,12 @@ class Molecule:
 
         def possible_capping_strategies_for_atom(atom: Atom) -> List[Capping_Strategy]:
             if debug is not None:
+                write_to_debug(debug, '')
                 write_to_debug(debug, atom)
+                write_to_debug(debug, 'capping_strategy, new_atom_for_capping_strategy(), keep_capping_strategy_for_atom()')
                 for capping_strategy in ALL_CAPPING_OPTIONS[self.atom_desc(atom)]:
                     write_to_debug(
-                        debug, 
+                        debug,
                         capping_strategy,
                         new_atom_for_capping_strategy(capping_strategy),
                         keep_capping_strategy_for_atom(capping_strategy, atom)
@@ -320,36 +322,41 @@ class Molecule:
         capping_atoms_for = {}
         new_bonds_sets = {}
         for uncapped_atom in atoms_need_capping:
-            for (i, capping_strategy) in enumerate(sorted(possible_capping_strategies_for_atom(uncapped_atom)), start=1):
-                write_to_debug(debug, uncapped_atom, capping_strategy, i)
-                # Add switch variable
-                fragment_switches[uncapped_atom.index, i] = LpVariable(
-                    'F_{i},{j}'.format(i=uncapped_atom.index, j=i),
-                    0,
-                    1,
-                    LpBinary,
-                )
-
-                new_atoms, new_bonds = self.extend_molecule_with(uncapped_atom, capping_strategy)
-                write_to_debug(debug, i, [atom for atom in new_atoms])
-                capping_atoms_for[uncapped_atom.index, i] = new_atoms
-                new_bonds_sets[uncapped_atom.index, i] = [bond for bond in new_bonds if uncapped_atom.index in bond]
-                fragment_scores[uncapped_atom.index, i] = len(capping_atoms_for[uncapped_atom.index, i])
-                fragment_H_scores[uncapped_atom.index, i] = len([atom for atom in capping_atoms_for[uncapped_atom.index, i] if atom.element == 'H'])
-
-                for capping_atom in new_atoms:
-                    # Add counter-charge variable S_i for every atom of the capping strategy
-                    counter_charges[capping_atom.index] = LpVariable(
-                        "S_{i}".format(i=capping_atom.index),
-                        -MAX_ABSOLUTE_CHARGE,
-                        MAX_ABSOLUTE_CHARGE,
-                        LpInteger,
+            possible_capping_strategies = possible_capping_strategies_for_atom(uncapped_atom)
+            if len(possible_capping_strategies) == 0 or len(possible_capping_strategies) == 1 and possible_capping_strategies[0] == NO_CAP:
+                pass
+                print('PASS')
+            else:
+                for (i, capping_strategy) in enumerate(sorted(possible_capping_strategies_for_atom(uncapped_atom)), start=1):
+                    write_to_debug(debug, uncapped_atom, capping_strategy, i)
+                    # Add switch variable
+                    fragment_switches[uncapped_atom.index, i] = LpVariable(
+                        'F_{i},{j}'.format(i=uncapped_atom.index, j=i),
+                        0,
+                        1,
+                        LpBinary,
                     )
-                    problem += (counter_charges[capping_atom.index] <=  (1 - fragment_switches[uncapped_atom.index, i]) * MAX_ABSOLUTE_CHARGE, 'Maximum counter charge for capping atom {element}_{index}'.format(element=capping_atom.element, index=capping_atom.index))
-                    problem += (counter_charges[capping_atom.index] >= -(1 - fragment_switches[uncapped_atom.index, i]) * MAX_ABSOLUTE_CHARGE, 'Minimum counter charge for capping atom {element}_{index}'.format(element=capping_atom.element, index=capping_atom.index))
 
-            # Only choose one capping strategy at a time
-            problem += (lpSum(F_i for ((atom_id, _), F_i) in fragment_switches.items() if atom_id == uncapped_atom.index) == 1, 'Single capping strategy for atom {element}_{index}'.format(element=uncapped_atom.element, index=uncapped_atom.index))
+                    new_atoms, new_bonds = self.extend_molecule_with(uncapped_atom, capping_strategy)
+                    write_to_debug(debug, i, [atom for atom in new_atoms])
+                    capping_atoms_for[uncapped_atom.index, i] = new_atoms
+                    new_bonds_sets[uncapped_atom.index, i] = [bond for bond in new_bonds if uncapped_atom.index in bond]
+                    fragment_scores[uncapped_atom.index, i] = len(capping_atoms_for[uncapped_atom.index, i])
+                    fragment_H_scores[uncapped_atom.index, i] = len([atom for atom in capping_atoms_for[uncapped_atom.index, i] if atom.element == 'H'])
+
+                    for capping_atom in new_atoms:
+                        # Add counter-charge variable S_i for every atom of the capping strategy
+                        counter_charges[capping_atom.index] = LpVariable(
+                            "S_{i}".format(i=capping_atom.index),
+                            -MAX_ABSOLUTE_CHARGE,
+                            MAX_ABSOLUTE_CHARGE,
+                            LpInteger,
+                        )
+                        problem += (counter_charges[capping_atom.index] <=  (1 - fragment_switches[uncapped_atom.index, i]) * MAX_ABSOLUTE_CHARGE, 'Maximum counter charge for capping atom {element}_{index}'.format(element=capping_atom.element, index=capping_atom.index))
+                        problem += (counter_charges[capping_atom.index] >= -(1 - fragment_switches[uncapped_atom.index, i]) * MAX_ABSOLUTE_CHARGE, 'Minimum counter charge for capping atom {element}_{index}'.format(element=capping_atom.element, index=capping_atom.index))
+
+                # Only choose one capping strategy at a time
+                problem += (lpSum(F_i for ((atom_id, _), F_i) in fragment_switches.items() if atom_id == uncapped_atom.index) == 1, 'Single capping strategy for atom {element}_{index}'.format(element=uncapped_atom.element, index=uncapped_atom.index))
 
         all_capping_atoms = {atom for atoms in capping_atoms_for.values() for atom in atoms}
 
