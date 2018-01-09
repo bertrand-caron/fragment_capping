@@ -1464,9 +1464,9 @@ class Molecule:
 
         if total_number_hydrogens is not None:
             problem += sum(keep_cap.values()) == total_number_hydrogens, 'Total number of hydrogens'
-        else:
-            OBJECTIVES.append(MAX(sum(keep_cap.values())))
-            OBJECTIVES.append(MAX(sum(non_bonded_electrons.values())))
+
+        OBJECTIVES.append(MAX(sum(keep_cap.values())))
+        OBJECTIVES.append(MAX(sum(non_bonded_electrons.values())))
 
         for atom in map(lambda atom_index: self.atoms[atom_index], charges.keys()):
             problem += charges[atom.index] == VALENCE_ELECTRONS[atom.element] - sum([bond_orders[bond] for bond in self.bonds if atom.index in bond]) - ELECTRON_MULTIPLIER * non_bonded_electrons[atom.index], '{element}_{index}'.format(element=atom.element, index=atom.index)
@@ -1521,14 +1521,13 @@ class Molecule:
                 atom_index = int(variable_substr)
                 self.non_bonded_electrons[atom_index] = 0
                 self.formal_charges[atom_index] = 0
-                print(v.name, v.varValue)
             else:
                 raise Exception('Unknown variable type: {0}'.format(variable_type))
 
         for atom_index in capping_atom_ids:
             self.formal_charges[atom_index] = 0
 
-        REMOVE_UNUSED_HYDROGENS = False
+        REMOVE_UNUSED_HYDROGENS = True
         if REMOVE_UNUSED_HYDROGENS:
             [self.remove_atom_with_index(atom_index) for atom_index in atom_indices_to_delete]
 
