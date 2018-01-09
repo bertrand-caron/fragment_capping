@@ -1412,16 +1412,18 @@ class Molecule:
                     ),
                 )
 
+        is_capping_bond = lambda bond: len(bond & capping_atom_ids) > 0
+
+        capping_bonds = {
+            bond
+            for bond in self.bonds
+            if len(bond & capping_atom_ids) != 0
+        }
+
         charges = {
             atom.index: LpVariable("C_{i}".format(i=atom.index), -MAX_ABSOLUTE_CHARGE, MAX_ABSOLUTE_CHARGE, LpInteger)
             for atom in self.atoms.values()
             if atom.index not in capping_atom_ids
-        }
-
-        keep_cap = {
-            atom.index: LpVariable("K_{i}".format(i=atom.index), 0, 1, LpBinary)
-            for atom in self.atoms.values()
-            if atom.index in capping_atom_ids
         }
 
         # Extra variable use to bind charges
@@ -1447,7 +1449,7 @@ class Molecule:
         bond_orders = {
             bond: (
                 LpVariable("B_{i}".format(i=bond_mapping[bond]), 0, 1, LpBinary)
-                if (bond & capping_atom_ids) != set()
+                if bond in capping_bonds
                 else LpVariable("B_{i}".format(i=bond_mapping[bond]), MIN_BOND_ORDER, MAX_BOND_ORDER, LpInteger)
             )
             for bond in self.bonds
@@ -1463,9 +1465,11 @@ class Molecule:
             problem += sum(charges.values()) == net_charge, 'Total net charge'
 
         if total_number_hydrogens is not None:
-            problem += sum(keep_cap.values()) == total_number_hydrogens, 'Total number of hydrogens'
+            problem += sum(bond_orders[bond] for bond in capping_bonds) == total_number_hydrogens, 'Total number of hydrogens'
+        else:
+            OBJECTIVES.append(MAX(sum(bond_orders[bond] for bond in capping_bonds))) # Add as many hydrogens as possible
 
-        OBJECTIVES.append(MAX(sum(keep_cap.values())))
+        #OBJECTIVES.append(MAX(sum(bond_orders.values())))
         OBJECTIVES.append(MAX(sum(non_bonded_electrons.values())))
 
         for atom in map(lambda atom_index: self.atoms[atom_index], charges.keys()):
@@ -1482,11 +1486,8 @@ class Molecule:
                         'Octet for atom {element}_{index}'.format(element=atom.element, index=atom.index),
                     )
 
-        is_capping_bond = lambda bond: bond & capping_atom_ids != set()
         capping_atom_for_bond = lambda atom_index, bond: list({atom.index} & bond)[0]
         bond_for_capping_atom_id = lambda atom_index: [bond for bond in self.bonds if atom_index in bond][0]
-        for atom_index in capping_atom_ids:
-            problem += keep_cap[atom_index] <= bond_orders[bond_for_capping_atom_id(atom_index)]
 
         try:
             problem.sequentialSolve(OBJECTIVES)
@@ -1517,19 +1518,24 @@ class Molecule:
                 atom_index = int(variable_substr)
                 self.non_bonded_electrons[atom_index] = ELECTRON_MULTIPLIER * MUST_BE_INT(v.varValue)
             elif variable_type == 'K':
-                # Manually add electronic properties of hydrogens: charge=0, non_bonded_electrons=0
-                atom_index = int(variable_substr)
-                self.non_bonded_electrons[atom_index] = 0
-                self.formal_charges[atom_index] = 0
+                pass
             else:
                 raise Exception('Unknown variable type: {0}'.format(variable_type))
 
         for atom_index in capping_atom_ids:
+            # Manually add electronic properties of hydrogens: charge=0, non_bonded_electrons=0
+            self.non_bonded_electrons[atom_index] = 0
             self.formal_charges[atom_index] = 0
 
         REMOVE_UNUSED_HYDROGENS = True
         if REMOVE_UNUSED_HYDROGENS:
             [self.remove_atom_with_index(atom_index) for atom_index in atom_indices_to_delete]
+
+        if net_charge is not None:
+            assert self.netcharge() == net_charge
+
+        if total_number_hydrogens is not None:
+            assert len([1 for atom in self.atoms.values() if atom.element == 'H']) == total_number_hydrogens
 
         return [
         ]
