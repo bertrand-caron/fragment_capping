@@ -148,8 +148,10 @@ class Molecule:
         del self.atoms[atom_index]
         old_bonds = deepcopy(self.bonds)
         self.bonds = {bond for bond in self.bonds if atom_index not in bond}
-        del self.formal_charges[atom_index]
-        del self.non_bonded_electrons[atom_index]
+        if self.formal_charges:
+            del self.formal_charges[atom_index]
+        if self.non_bonded_electrons:
+            del self.non_bonded_electrons[atom_index]
         for bond in old_bonds - self.bonds:
             del self.bond_orders[bond]
 
@@ -879,7 +881,11 @@ class Molecule:
                 element=atom.element,
                 valence=atom.valence if self.use_neighbour_valences and include_atom_valence else '',
                 charge_str=('' if charge_str else '') + charge_str,
-                non_bonded_str=('*' * (self.non_bonded_electrons[atom_index] // 2) if self.non_bonded_electrons is not None else ''),
+                non_bonded_str=(
+                    ('*' * (self.non_bonded_electrons[atom_index] // 2) if self.non_bonded_electrons[atom_index] % 2 == 0 else '.' * self.non_bonded_electrons[atom_index])
+                    if self.non_bonded_electrons is not None
+                    else ''
+                ),
                 index=' ({0})'.format(atom.index) if include_atom_index else '',
             )
             if atom.index in self.previously_uncapped:
@@ -1307,8 +1313,18 @@ class Molecule:
             if predicate(atom)
         }
 
+        atoms_connected_to_deleted_atoms = reduce(
+            lambda acc, e: acc | e,
+            [
+                bond
+                for bond in self.bonds
+                if len(bond & deleted_atom_ids) != 0
+            ],
+            set(),
+        ) - deleted_atom_ids
+
         self.atoms = {
-            atom.index: atom
+            atom.index: atom if atom not in atoms_connected_to_deleted_atoms else atom._replace(valence=None)
             for atom in self.atoms.values()
             if atom.index not in deleted_atom_ids
         }
@@ -1368,10 +1384,12 @@ class Molecule:
             ),
         )
 
-    def get_all_tautomers(self, total_number_hydrogens: Optional[int] = None, net_charge: Optional[int] = None, enforce_octet_rule: bool = True) -> List[Any]:
+    def get_all_tautomers(self, total_number_hydrogens: Optional[int] = None, net_charge: Optional[int] = None, enforce_octet_rule: bool = True, allow_radicals: bool = False) -> List[Any]:
+        ELECTRON_MULTIPLIER = (2 if not allow_radicals else 1)
+
         self.remove_all_hydrogens()
 
-        from pulp import LpProblem, LpMinimize, LpInteger, LpVariable, LpBinary
+        from pulp import LpProblem, LpMinimize, LpInteger, LpVariable, LpBinary, LpStatus
 
         problem = LpProblem("Lewis problem (tautomers) for molecule {0}".format(self.name), LpMinimize)
 
@@ -1413,7 +1431,7 @@ class Molecule:
         }
 
         non_bonded_electrons = {
-            atom_id: LpVariable("N_{i}".format(i=atom_id), 0, MAX_NONBONDED_ELECTRONS, LpInteger)
+            atom_id: LpVariable("N_{i}".format(i=atom_id), 0, MAX_NONBONDED_ELECTRONS // ELECTRON_MULTIPLIER, LpInteger)
             for atom_id in charges.keys()
         }
 
@@ -1451,7 +1469,7 @@ class Molecule:
             OBJECTIVES.append(MAX(sum(non_bonded_electrons.values())))
 
         for atom in map(lambda atom_index: self.atoms[atom_index], charges.keys()):
-            problem += charges[atom.index] == VALENCE_ELECTRONS[atom.element] - sum([bond_orders[bond] for bond in self.bonds if atom.index in bond]) - non_bonded_electrons[atom.index], '{element}_{index}'.format(element=atom.element, index=atom.index)
+            problem += charges[atom.index] == VALENCE_ELECTRONS[atom.element] - sum([bond_orders[bond] for bond in self.bonds if atom.index in bond]) - ELECTRON_MULTIPLIER * non_bonded_electrons[atom.index], '{element}_{index}'.format(element=atom.element, index=atom.index)
 
             # Deal with absolute values
             problem += charges[atom.index] <= absolute_charges[atom.index], 'Absolute charge contraint 1 {i}'.format(i=atom.index)
@@ -1475,7 +1493,7 @@ class Molecule:
             assert problem.status == 1, (self.name, LpStatus[problem.status])
         except Exception as e:
             problem.writeLP('debug.lp')
-            self.write_graph('DEBUG', output_size=(1000, 1000))
+            self.write_graph('DEBUG', output_size=(2000, 2000))
             print('Failed LP written to "debug.lp"')
             raise
 
@@ -1497,8 +1515,12 @@ class Molecule:
                 pass
             elif variable_type == 'N':
                 atom_index = int(variable_substr)
-                self.non_bonded_electrons[atom_index] = MUST_BE_INT(v.varValue)
+                self.non_bonded_electrons[atom_index] = ELECTRON_MULTIPLIER * MUST_BE_INT(v.varValue)
             elif variable_type == 'K':
+                # Manually add electronic properties of hydrogens: charge=0, non_bonded_electrons=0
+                atom_index = int(variable_substr)
+                self.non_bonded_electrons[atom_index] = 0
+                self.formal_charges[atom_index] = 0
                 print(v.name, v.varValue)
             else:
                 raise Exception('Unknown variable type: {0}'.format(variable_type))
@@ -1506,7 +1528,7 @@ class Molecule:
         for atom_index in capping_atom_ids:
             self.formal_charges[atom_index] = 0
 
-        REMOVE_UNUSED_HYDROGENS = True
+        REMOVE_UNUSED_HYDROGENS = False
         if REMOVE_UNUSED_HYDROGENS:
             [self.remove_atom_with_index(atom_index) for atom_index in atom_indices_to_delete]
 
