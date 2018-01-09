@@ -1,7 +1,7 @@
 from sys import stderr
 
 from fragment_capping.helpers.types_helpers import Atom
-from fragment_capping.helpers.molecule import Molecule
+from fragment_capping.helpers.molecule import Molecule, molecule_from_pdb_str
 
 CAPPING_FUNCTION_NAME = 'get_best_capped_molecule_with_ILP'
 
@@ -642,7 +642,27 @@ def example_taxol_core() -> None:
 
     assert capped_molecule.formula(charge=True) == 'C16H26O5', capped_molecule.formula(charge=True)
 
+def example_porphyrin(use_ILP: bool = True) -> None:
+    with open('pdbs/tetraphenylporphyrin.pdb') as fh:
+        uncapped_molecule = molecule_from_pdb_str(
+            fh.read(),
+            name='porphyrin',
+        )
+    _, _, pos = uncapped_molecule.write_graph(
+        'input',
+        output_size=(1200, 1200),
+        graph_kwargs={'include_atom_index': False},
+    )
+    capped_molecule = getattr(uncapped_molecule, CAPPING_FUNCTION_NAME)(debug=None)
+    capped_molecule.write_graph(
+        'output',
+        output_size=(1200, 1200),
+        graph_kwargs={'include_atom_index': False},
+        pos=pos,
+    )
+
 ALL_EXAMPLES = [
+    example_porphyrin,
     example_0,
     example_1,
     example_2,

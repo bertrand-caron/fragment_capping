@@ -254,7 +254,13 @@ class Molecule:
             print('Bonds were: {0}'.format(self.bonds))
             raise
 
-    def get_best_capped_molecule_with_ILP(self, draw_all_possible_graphs: bool = DRAW_ALL_POSSIBLE_GRAPHS, enforce_octet_rule: bool = True, allow_radicals: bool = False, debug: Optional[TextIO] = None):
+    def get_best_capped_molecule_with_ILP(
+        self,
+        draw_all_possible_graphs: bool = DRAW_ALL_POSSIBLE_GRAPHS,
+        enforce_octet_rule: bool = True,
+        allow_radicals: bool = False,
+        debug: Optional[TextIO] = None,
+    ) -> 'Molecule':
         neighbour_counts = self.neighbours_for_atoms()
 
         def keep_capping_strategy_for_atom(capping_strategy: Capping_Strategy, atom: Atom):
@@ -285,23 +291,25 @@ class Molecule:
             ]
 
         atoms_need_capping = [atom for atom in self.sorted_atoms() if not atom.capped]
-        capping_schemes = list(
-            product(
-                *[
-                    possible_capping_strategies_for_atom(atom)
-                    for atom in atoms_need_capping
-                ]
-            ),
-        )
 
-        assert len(capping_schemes) > 0, [
-            (
-                atom,
-                possible_capping_strategies_for_atom(atom),
+        if False:
+            capping_schemes = list(
+                product(
+                    *[
+                        possible_capping_strategies_for_atom(atom)
+                        for atom in atoms_need_capping
+                    ]
+                ),
             )
-            for atom in atoms_need_capping
-            if len(possible_capping_strategies_for_atom(atom)) == 0
-        ]
+
+            assert len(capping_schemes) > 0, [
+                (
+                    atom,
+                    possible_capping_strategies_for_atom(atom),
+                )
+                for atom in atoms_need_capping
+                if len(possible_capping_strategies_for_atom(atom)) == 0
+            ]
 
         write_to_debug(
             debug,
@@ -610,22 +618,29 @@ class Molecule:
         self,
         unique_id: Union[str, int],
         graph_kwargs: Dict[str, Any] = {},
+        sfdp_layout_kwargs: Dict[str, Any] = {},
         output_size: Optional[Tuple[int, int]] = None,
         g: Optional[Any] = None,
         pos: Optional[PropertyMap] = None,
         **kwargs: Dict[str, Any]
-    ) -> Tuple[str, PropertyMap]:
+    ) -> Tuple[str, PropertyMap, Any]:
         if output_size is None:
             output_size = [int(sqrt(len(self.atoms) / 3) * 300)] * 2
 
-        graph_filepath = join(FRAGMENT_CAPPING_DIR, 'graphs' ,'_'.join((self.name, str(unique_id))) + '.png')
+        graph_filepath = join(FRAGMENT_CAPPING_DIR, 'graphs' ,'_'.join((self.name, str(unique_id))) + '.pdf')
         try:
             from chem_graph_tool.pdb import graph_from_pdb
             from chem_graph_tool.moieties import draw_graph, sfdp_layout
             graph = self.graph(g=g, **graph_kwargs)
 
             if pos is None:
-                pos = sfdp_layout(graph)
+                pos = sfdp_layout(
+                    graph,
+                    **{
+                        **sfdp_layout_kwargs,
+                        #**dict(p=3, epsilon=0.001, weighted_coarse=True),
+                    }
+                )
             assert pos is not None, pos
 
             draw_graph(
@@ -820,7 +835,7 @@ class Molecule:
     def inchi(self) -> str:
         return self.representation('inchi')
 
-    def graph(self, g: Optional[Any] = None, include_atom_index: bool = True) -> Any:
+    def graph(self, g: Optional[Any] = None, include_atom_index: bool = True, include_atom_valence: bool = False) -> Any:
         try:
             from graph_tool.all import Graph
         except:
@@ -856,13 +871,13 @@ class Molecule:
             v = self._vertices[atom_index]
             if self.formal_charges is None:
                 possible_charges = possible_charge_for_atom(atom)
-                charge_str = str(possible_charges).replace(' ', '') if len(possible_charges) > 1 else ''
+                charge_str = '?'
             else:
                 charge = self.formal_charges[atom_index]
                 charge_str = ((str(abs(charge)) if abs(charge) != 1 else '') + ('-' if charge < 0 else '+')) if charge != 0 else ''
             vertex_types[v] = '{element}{valence}{charge_str}{non_bonded_str}{index}'.format(
                 element=atom.element,
-                valence=atom.valence if self.use_neighbour_valences else '',
+                valence=atom.valence if self.use_neighbour_valences and include_atom_valence else '',
                 charge_str=('' if charge_str else '') + charge_str,
                 non_bonded_str=('*' * (self.non_bonded_electrons[atom_index] // 2) if self.non_bonded_electrons is not None else ''),
                 index=' ({0})'.format(atom.index) if include_atom_index else '',
@@ -878,7 +893,7 @@ class Molecule:
             e = self._edges[bond]
             if self.bond_orders is None:
                 possible_bond_orders = possible_bond_order_for_atom_pair((self.atoms[i], self.atoms[j]))
-                edge_text = str(possible_bond_orders)[1:-1] if len(possible_bond_orders) > 1 else ''
+                edge_text = '?'
             else:
                 edge_text = str(self.bond_orders[bond])
             edge_types[e] = edge_text
