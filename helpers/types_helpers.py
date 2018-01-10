@@ -21,3 +21,7 @@ Atom = NamedTuple(
 Bond = FrozenSet[ATOM_INDEX]
 
 FRAGMENT_CAPPING_DIR = dirname(dirname(abspath(__file__)))
+
+DESC = lambda x: -x
+
+MAX, MIN = (lambda x: DESC(x), lambda x: x)
