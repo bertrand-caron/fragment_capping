@@ -1003,6 +1003,12 @@ class Molecule:
     def get_all_tautomers(self, *args, **kwargs):
         return get_all_tautomers(self, *args, **kwargs)
 
+    def get_best_capped_molecule_with_ILP(self, *args, **kwargs):
+        return get_best_capped_molecule_with_ILP(self, *args, **kwargs)
+
+    def get_best_capped_molecule(self, *args, **kwargs):
+        return get_best_capped_molecule(self, *args, **kwargs)
+
 Uncapped_Molecule = Molecule
 
 def validated_atoms_dict(atoms: Dict[int, Atom]) -> Dict[int, Atom]:
