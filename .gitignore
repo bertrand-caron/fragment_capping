@@ -3,3 +3,4 @@
 *.DS_Store
 .time
 .mypy_cache/
+*.lp

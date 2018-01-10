@@ -1,7 +1,7 @@
 from typing import Any, Optional, List, Tuple, Dict, Union, Set, Sequence, TextIO, FrozenSet, Callable
 from copy import deepcopy
 from operator import itemgetter
-from itertools import groupby, product
+from itertools import groupby, product, count
 from io import StringIO
 from functools import reduce, lru_cache
 from os.path import join
@@ -631,7 +631,6 @@ class Molecule:
 
         graph_filepath = join(FRAGMENT_CAPPING_DIR, 'graphs' ,'_'.join((self.name, str(unique_id))) + '.pdf')
         try:
-            from chem_graph_tool.pdb import graph_from_pdb
             from chem_graph_tool.moieties import draw_graph, sfdp_layout
             graph = self.graph(g=g, **graph_kwargs)
 
@@ -855,22 +854,22 @@ class Molecule:
             vertex_colors = g.new_vertex_property("string")
             g.vertex_properties['color'] = vertex_colors
 
-            self._vertices = {}
+            _vertices = {}
             for (atom_index, atom) in sorted(self.atoms.items()):
                 v = g.add_vertex()
-                self._vertices[atom_index] = v
+                _vertices[atom_index] = v
 
-            self._edges = {}
+            _edges = {}
             for bond in self.bonds:
                 (i, j) = bond
-                e = g.add_edge(self._vertices[i], self._vertices[j])
-                self._edges[bond] = e
+                e = g.add_edge(_vertices[i], _vertices[j])
+                _edges[bond] = e
         else:
             (vertex_types, vertex_colors) = map(lambda type_str: g.vertex_properties[type_str], ['type', 'color'])
             (edge_types,) = map(lambda type_str: g.edge_properties[type_str], ['type'])
 
         for (atom_index, atom) in sorted(self.atoms.items()):
-            v = self._vertices[atom_index]
+            v = _vertices[atom_index]
             if self.formal_charges is None:
                 possible_charges = possible_charge_for_atom(atom)
                 charge_str = '?'
@@ -896,7 +895,7 @@ class Molecule:
                 vertex_colors[v] = '#FF91A4' # Red
 
         for bond in self.bonds:
-            e = self._edges[bond]
+            e = _edges[bond]
             if self.bond_orders is None:
                 possible_bond_orders = possible_bond_order_for_atom_pair((self.atoms[i], self.atoms[j]))
                 edge_text = '?'
@@ -1489,56 +1488,103 @@ class Molecule:
         capping_atom_for_bond = lambda atom_index, bond: list({atom.index} & bond)[0]
         bond_for_capping_atom_id = lambda atom_index: [bond for bond in self.bonds if atom_index in bond][0]
 
+        unique_solution_equation = sum(2**i * v for (i, v) in enumerate([bond_orders[bond] for bond in capping_bonds]))
+
+        def encode_solution() -> int:
+            return sum(2**i * int(v.varValue) for (i, v) in enumerate([bond_orders[bond] for bond in capping_bonds]))
+
+        def new_molecule_for_current_solution() -> 'Molecule':
+            new_molecule = deepcopy(self)
+
+            new_molecule.formal_charges, new_molecule.bond_orders, new_molecule.non_bonded_electrons = {}, {}, {}
+
+            atom_indices_to_delete = set()
+            for v in problem.variables():
+                variable_type, variable_substr = v.name.split('_')
+                if variable_type == 'C':
+                    atom_index = int(variable_substr)
+                    new_molecule.formal_charges[atom_index] = MUST_BE_INT(v.varValue)
+                elif variable_type == 'B':
+                    bond_index = int(variable_substr)
+                    if MUST_BE_INT(v.varValue) == 0:
+                        atom_indices_to_delete |= (capping_atom_ids & set([atom_index for atom_index in new_molecule.atoms.keys() if atom_index in bond_reverse_mapping[bond_index]]))
+                    new_molecule.bond_orders[bond_reverse_mapping[bond_index]] = MUST_BE_INT(v.varValue)
+                    pass
+                elif variable_type == 'Z':
+                    pass
+                elif variable_type == 'N':
+                    atom_index = int(variable_substr)
+                    new_molecule.non_bonded_electrons[atom_index] = ELECTRON_MULTIPLIER * MUST_BE_INT(v.varValue)
+                elif variable_type == 'K':
+                    pass
+                else:
+                    raise Exception('Unknown variable type: {0}'.format(variable_type))
+
+            for atom_index in capping_atom_ids:
+                # Manually add electronic properties of hydrogens: charge=0, non_bonded_electrons=0
+                new_molecule.non_bonded_electrons[atom_index] = 0
+                new_molecule.formal_charges[atom_index] = 0
+
+            REMOVE_UNUSED_HYDROGENS = False
+            if REMOVE_UNUSED_HYDROGENS:
+                [new_molecule.remove_atom_with_index(atom_index) for atom_index in atom_indices_to_delete]
+
+            if net_charge is not None:
+                assert new_molecule.netcharge() == net_charge
+
+            if total_number_hydrogens is not None and REMOVE_UNUSED_HYDROGENS:
+                assert len([1 for atom in new_molecule.atoms.values() if atom.element == 'H']) == total_number_hydrogens
+
+            return new_molecule
+
+        def debug_failed_ILP(n: Optional[int] = None) -> None:
+            debug_filename = 'debug{0}.lp'.format('' if n is None else '_{n}'.format(n=n))
+            problem.writeLP(debug_filename)
+            print('Failed LP written to "{0}"'.format(debug_filename))
+
+        # Solve once to find optimal solution with lowest encode_solution()
         try:
-            problem.sequentialSolve(OBJECTIVES)
-            assert problem.status == 1, (self.name, LpStatus[problem.status])
+            print('Solving')
+            problem.sequentialSolve(OBJECTIVES + [MIN(unique_solution_equation)])
         except Exception as e:
             problem.writeLP('debug.lp')
-            self.write_graph('DEBUG', output_size=(2000, 2000))
+            new_molecule.write_graph('DEBUG', output_size=(2000, 2000))
             print('Failed LP written to "debug.lp"')
             raise
 
-        self.formal_charges, self.bond_orders, self.non_bonded_electrons = {}, {}, {}
+        all_tautomers = [new_molecule_for_current_solution()]
 
-        atom_indices_to_delete = set()
-        for v in problem.variables():
-            variable_type, variable_substr = v.name.split('_')
-            if variable_type == 'C':
-                atom_index = int(variable_substr)
-                self.formal_charges[atom_index] = MUST_BE_INT(v.varValue)
-            elif variable_type == 'B':
-                bond_index = int(variable_substr)
-                if MUST_BE_INT(v.varValue) == 0:
-                    atom_indices_to_delete |= (capping_atom_ids & set([atom_index for atom_index in self.atoms.keys() if atom_index in bond_reverse_mapping[bond_index]]))
-                self.bond_orders[bond_reverse_mapping[bond_index]] = MUST_BE_INT(v.varValue)
-                pass
-            elif variable_type == 'Z':
-                pass
-            elif variable_type == 'N':
-                atom_index = int(variable_substr)
-                self.non_bonded_electrons[atom_index] = ELECTRON_MULTIPLIER * MUST_BE_INT(v.varValue)
-            elif variable_type == 'K':
+        # Remove redundant constraints from previous multi-objective optimistion
+        for constraint_name in ['1_Sequence_Objective', '2_Sequence_Objective']:
+            del problem.constraints[constraint_name]
+
+        # Iterate until no more tautomers are found
+        for n in count(0):
+            problem += unique_solution_equation >= encode_solution() + 1, 'Solution {n}'.format(n=n)
+            print('Excluding all solution below {0}'.format(encode_solution()))
+
+            try:
+                print('Solving')
+                problem.setObjective(MIN(unique_solution_equation))
+                problem.solve()
+                print([bond_orders[bond].value() for bond in capping_bonds])
+                print(encode_solution())
+                debug_failed_ILP(n)
+                print()
+            except Exception as e:
+                debug_failed_ILP()
+                raise
+
+            if problem.status == 1:
                 pass
             else:
-                raise Exception('Unknown variable type: {0}'.format(variable_type))
+                print(problem.status, LpStatus[problem.status])
+                debug_failed_ILP()
+                break
 
-        for atom_index in capping_atom_ids:
-            # Manually add electronic properties of hydrogens: charge=0, non_bonded_electrons=0
-            self.non_bonded_electrons[atom_index] = 0
-            self.formal_charges[atom_index] = 0
+            all_tautomers.append(new_molecule_for_current_solution())
 
-        REMOVE_UNUSED_HYDROGENS = True
-        if REMOVE_UNUSED_HYDROGENS:
-            [self.remove_atom_with_index(atom_index) for atom_index in atom_indices_to_delete]
-
-        if net_charge is not None:
-            assert self.netcharge() == net_charge
-
-        if total_number_hydrogens is not None:
-            assert len([1 for atom in self.atoms.values() if atom.element == 'H']) == total_number_hydrogens
-
-        return [
-        ]
+        return all_tautomers
 
 Uncapped_Molecule = Molecule
 
