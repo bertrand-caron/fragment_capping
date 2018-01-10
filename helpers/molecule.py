@@ -13,6 +13,7 @@ from fragment_capping.helpers.types_helpers import Fragment, ATB_Molid, Atom, FR
 from fragment_capping.helpers.parameters import FULL_VALENCES, POSSIBLE_CHARGES, new_atom_for_capping_strategy, Capping_Strategy, possible_bond_order_for_atom_pair, min_valence, max_valence, coordinates_n_angstroms_away_from, possible_charge_for_atom, ALL_ELEMENTS, electronegativity_spread, ELECTRONEGATIVITIES, VALENCE_ELECTRONS, MIN_ABSOLUTE_CHARGE, MAX_ABSOLUTE_CHARGE, MIN_BOND_ORDER, MAX_BOND_ORDER, MUST_BE_INT, MAX_NONBONDED_ELECTRONS, NO_CAP, ELECTRONS_PER_BOND, ALL_CAPPING_OPTIONS
 from fragment_capping.helpers.babel import energy_minimised_pdb
 from fragment_capping.helpers.rings import bonds_for_ring
+from fragment_capping.helpers.graphs import unique_molecules
 
 DRAW_ALL_POSSIBLE_GRAPHS = False
 
@@ -1323,7 +1324,7 @@ class Molecule:
         ) - deleted_atom_ids
 
         self.atoms = {
-            atom.index: atom if atom not in atoms_connected_to_deleted_atoms else atom._replace(valence=None)
+            atom.index: atom if atom.index not in atoms_connected_to_deleted_atoms else atom._replace(valence=None)
             for atom in self.atoms.values()
             if atom.index not in deleted_atom_ids
         }
@@ -1383,7 +1384,7 @@ class Molecule:
             ),
         )
 
-    def get_all_tautomers(self, total_number_hydrogens: Optional[int] = None, net_charge: Optional[int] = None, enforce_octet_rule: bool = True, allow_radicals: bool = False) -> List[Any]:
+    def get_all_tautomers(self, total_number_hydrogens: Optional[int] = None, net_charge: Optional[int] = None, enforce_octet_rule: bool = True, allow_radicals: bool = False, max_tautomers: Optional[int] = 100) -> List[Any]:
         ELECTRON_MULTIPLIER = (2 if not allow_radicals else 1)
 
         self.remove_all_hydrogens()
@@ -1493,8 +1494,10 @@ class Molecule:
         def encode_solution() -> int:
             return sum(2**i * int(v.varValue) for (i, v) in enumerate([bond_orders[bond] for bond in capping_bonds]))
 
-        def new_molecule_for_current_solution() -> 'Molecule':
+        def new_molecule_for_current_solution(n: Optional[int] = None) -> 'Molecule':
             new_molecule = deepcopy(self)
+            if n is not None:
+                new_molecule.name += '_tautomer_{0}'.format(n)
 
             new_molecule.formal_charges, new_molecule.bond_orders, new_molecule.non_bonded_electrons = {}, {}, {}
 
@@ -1552,25 +1555,20 @@ class Molecule:
             print('Failed LP written to "debug.lp"')
             raise
 
-        all_tautomers = [new_molecule_for_current_solution()]
+        all_tautomers = [new_molecule_for_current_solution(n=0)]
 
         # Remove redundant constraints from previous multi-objective optimistion
         for constraint_name in ['1_Sequence_Objective', '2_Sequence_Objective']:
             del problem.constraints[constraint_name]
 
         # Iterate until no more tautomers are found
-        for n in count(0):
+        for n in (count(1) if max_tautomers is None else range(1, max_tautomers)):
             problem += unique_solution_equation >= encode_solution() + 1, 'Solution {n}'.format(n=n)
             print('Excluding all solution below {0}'.format(encode_solution()))
 
             try:
-                print('Solving')
                 problem.setObjective(MIN(unique_solution_equation))
                 problem.solve()
-                print([bond_orders[bond].value() for bond in capping_bonds])
-                print(encode_solution())
-                debug_failed_ILP(n)
-                print()
             except Exception as e:
                 debug_failed_ILP()
                 raise
@@ -1579,12 +1577,12 @@ class Molecule:
                 pass
             else:
                 print(problem.status, LpStatus[problem.status])
-                debug_failed_ILP()
                 break
 
-            all_tautomers.append(new_molecule_for_current_solution())
+            all_tautomers.append(new_molecule_for_current_solution(n=n))
 
         return all_tautomers
+        #return unique_molecules(all_tautomers)
 
 Uncapped_Molecule = Molecule
 
