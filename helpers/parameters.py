@@ -172,10 +172,10 @@ POSSIBLE_BOND_ORDER_FOR_PAIR = {
     for (element_1, element_2) in product(POSSIBLE_BOND_ORDERS.keys(), repeat=2)
 }
 
-def max_valence(atom: Atom) -> int:
+def max_valence_for(atom: Atom) -> int:
     return max(FULL_VALENCES[atom.element]) - min(POSSIBLE_CHARGES[atom.element])
 
-def min_valence(atom: Atom) -> int:
+def min_valence_for(atom: Atom) -> int:
     return (min(FULL_VALENCES[atom.element]) + max(POSSIBLE_CHARGES[atom.element])) // max(POSSIBLE_BOND_ORDERS[atom.element])
 
 def possible_sets_of_bond_orders_for_atom(atom: Atom) -> List[int]:
