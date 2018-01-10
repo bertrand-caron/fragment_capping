@@ -27,9 +27,34 @@ def example_porphyrin(use_ILP: bool = True) -> None:
         graph_kwargs={'include_atom_index': False},
     )
 
+def example_methylimidazole(use_ILP: bool = True) -> None:
+    with open('pdbs/methylimidazole.pdb') as fh:
+        molecule = molecule_from_pdb_str(
+            fh.read(),
+            name='methylimidazole',
+        )
+    molecule.remove_all_hydrogens()
+    molecule.write_graph(
+        'input',
+        output_size=(600, 600),
+        graph_kwargs={'include_atom_index': False},
+    )
+    molecule.get_all_tautomers(
+        net_charge=0,
+        total_number_hydrogens=6,
+        enforce_octet_rule=True,
+        allow_radicals=False,
+    )
+    molecule.write_graph(
+        'capped',
+        output_size=(600, 600),
+        graph_kwargs={'include_atom_index': False},
+    )
+
 
 ALL_EXAMPLES = [
     example_porphyrin,
+    example_methylimidazole,
 ]
 
 def main() -> None:
