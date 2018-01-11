@@ -46,7 +46,6 @@ class Test_Capping(unittest.TestCase):
         for use_ILP in (True,):
             capped_molecule = getattr(uncapped_molecule, CAPPING_FUNCTION_NAME)(debug=None)
             capped_molecule.write_graph('capped_molecule_with_{0}'.format('ILP' if use_ILP else 'bruteforce'))
-            print(capped_molecule.dummy_pdb())
 
         assert capped_molecule.formula(charge=True) == 'C2H4', capped_molecule.formula(charge=True)
 
@@ -67,7 +66,6 @@ class Test_Capping(unittest.TestCase):
         for use_ILP in (True,):
             capped_molecule = getattr(uncapped_molecule, CAPPING_FUNCTION_NAME)(debug=None)
             capped_molecule.write_graph('capped_molecule_with_{0}'.format('ILP' if use_ILP else 'bruteforce'))
-            print(capped_molecule.dummy_pdb())
 
         assert capped_molecule.formula(charge=True) == 'CH2O', capped_molecule.formula(charge=True)
 
@@ -95,7 +93,6 @@ class Test_Capping(unittest.TestCase):
         for use_ILP in (True, False):
             capped_molecule = getattr(uncapped_molecule, CAPPING_FUNCTION_NAME)(debug=None)
             capped_molecule.write_graph('capped_molecule_with_{0}'.format('ILP' if use_ILP else 'bruteforce'))
-            print(capped_molecule.dummy_pdb())
 
         assert capped_molecule.formula(charge=True) == 'C6H6', capped_molecule.formula(charge=True)
 
@@ -113,7 +110,6 @@ class Test_Capping(unittest.TestCase):
         for use_ILP in (True, False):
             capped_molecule = getattr(uncapped_molecule, CAPPING_FUNCTION_NAME)(debug=None)
             capped_molecule.write_graph('capped_molecule_with_{0}'.format('ILP' if use_ILP else 'bruteforce'))
-            print(capped_molecule.dummy_pdb())
 
         assert capped_molecule.formula(charge=True) == 'CH4', capped_molecule.formula(charge=True)
 
@@ -135,7 +131,6 @@ class Test_Capping(unittest.TestCase):
         for use_ILP in (True, False):
             capped_molecule = getattr(uncapped_molecule, CAPPING_FUNCTION_NAME)(debug=None)
             capped_molecule.write_graph('capped_molecule_with_{0}'.format('ILP' if use_ILP else 'bruteforce'))
-            print(capped_molecule.dummy_pdb())
 
         assert capped_molecule.formula(charge=True) == 'CO2', capped_molecule.formula(charge=True)
 
@@ -153,7 +148,6 @@ class Test_Capping(unittest.TestCase):
         for use_ILP in (True, False):
             capped_molecule = getattr(uncapped_molecule, CAPPING_FUNCTION_NAME)(debug=None)
             capped_molecule.write_graph('capped_molecule_with_{0}'.format('ILP' if use_ILP else 'bruteforce'))
-            print(capped_molecule.dummy_pdb())
 
         assert capped_molecule.formula(charge=True) == 'CH4', capped_molecule.formula(charge=True)
 
@@ -177,7 +171,6 @@ class Test_Capping(unittest.TestCase):
         for use_ILP in (True, False):
             capped_molecule = getattr(uncapped_molecule, CAPPING_FUNCTION_NAME)(debug=None)
             capped_molecule.write_graph('capped_molecule_with_{0}'.format('ILP' if use_ILP else 'bruteforce'))
-            print(capped_molecule.dummy_pdb())
 
         assert capped_molecule.formula(charge=True) == 'CH2O2', capped_molecule.formula(charge=True)
 
@@ -198,7 +191,6 @@ class Test_Capping(unittest.TestCase):
         for use_ILP in (True,):
             capped_molecule = getattr(uncapped_molecule, CAPPING_FUNCTION_NAME)(debug=None)
             capped_molecule.write_graph('capped_molecule_with_{0}'.format('ILP' if use_ILP else 'bruteforce'))
-            print(capped_molecule.dummy_pdb())
 
         assert capped_molecule.formula(charge=True) == 'H3N', capped_molecule.formula(charge=True)
 
@@ -219,7 +211,6 @@ class Test_Capping(unittest.TestCase):
         for use_ILP in (True,):
             capped_molecule = getattr(uncapped_molecule, CAPPING_FUNCTION_NAME)(debug=None)
             capped_molecule.write_graph('capped_molecule_with_{0}'.format('ILP' if use_ILP else 'bruteforce'))
-            print(capped_molecule.dummy_pdb())
 
         assert capped_molecule.formula(charge=True) == 'H3N', capped_molecule.formula(charge=True)
 
@@ -263,7 +254,6 @@ class Test_Capping(unittest.TestCase):
         for use_ILP in (True, False):
             capped_molecule = getattr(uncapped_molecule, CAPPING_FUNCTION_NAME)(debug=None)
             capped_molecule.write_graph('capped_molecule_with_{0}'.format('ILP' if use_ILP else 'bruteforce'))
-            print(capped_molecule.dummy_pdb())
 
         assert capped_molecule.formula(charge=True) == 'C6H5O 1-', capped_molecule.formula(charge=True)
 
@@ -289,7 +279,6 @@ class Test_Capping(unittest.TestCase):
         for use_ILP in (True, False):
             capped_molecule = getattr(uncapped_molecule, CAPPING_FUNCTION_NAME)(debug=None)
             capped_molecule.write_graph('capped_molecule_with_{0}'.format('ILP' if use_ILP else 'bruteforce'))
-            print(capped_molecule.dummy_pdb())
 
         assert capped_molecule.formula(charge=True) == 'C3H6OS', capped_molecule.formula(charge=True)
 
@@ -323,7 +312,6 @@ class Test_Capping(unittest.TestCase):
         for use_ILP in (True, False):
             capped_molecule = getattr(uncapped_molecule, CAPPING_FUNCTION_NAME)(debug=None)
             capped_molecule.write_graph('capped_molecule_with_{0}'.format('ILP' if use_ILP else 'bruteforce'))
-            print(capped_molecule.dummy_pdb())
 
         assert capped_molecule.formula(charge=True) == 'C5H13O3P', capped_molecule.formula(charge=True)
 
@@ -352,7 +340,6 @@ class Test_Capping(unittest.TestCase):
         for use_ILP in (True, False):
             capped_molecule = getattr(uncapped_molecule, CAPPING_FUNCTION_NAME)(debug=None)
             capped_molecule.write_graph('capped_molecule_with_{0}'.format('ILP' if use_ILP else 'bruteforce'))
-            print(capped_molecule.dummy_pdb())
 
         assert capped_molecule.formula(charge=True) == 'C4H3NO', capped_molecule.formula(charge=True)
 
@@ -380,7 +367,6 @@ class Test_Capping(unittest.TestCase):
         for use_ILP in (True, False):
             capped_molecule = getattr(uncapped_molecule, CAPPING_FUNCTION_NAME)(debug=None)
             capped_molecule.write_graph('capped_molecule_with_{0}'.format('ILP' if use_ILP else 'bruteforce'))
-            print(capped_molecule.dummy_pdb())
 
         #assert capped_molecule.formula(charge=True) == 'C5H10N 1+', capped_molecule.formula(charge=True)
 
@@ -418,7 +404,6 @@ class Test_Capping(unittest.TestCase):
         for use_ILP in (True, False):
             capped_molecule = getattr(uncapped_molecule, CAPPING_FUNCTION_NAME)(debug=None)
             capped_molecule.write_graph('capped_molecule_with_{0}'.format('ILP' if use_ILP else 'bruteforce'))
-            print(capped_molecule.dummy_pdb())
 
         assert capped_molecule.formula(charge=True) == 'C10H8', capped_molecule.formula(charge=True)
 
@@ -442,7 +427,6 @@ class Test_Capping(unittest.TestCase):
         for use_ILP in (True, False):
             capped_molecule = getattr(uncapped_molecule, CAPPING_FUNCTION_NAME)(debug=None)
             capped_molecule.write_graph('capped_molecule_with_{0}'.format('ILP' if use_ILP else 'bruteforce'))
-            print(capped_molecule.dummy_pdb())
 
         assert capped_molecule.formula(charge=True) == 'C2H3NS', capped_molecule.formula(charge=True)
 
@@ -473,7 +457,6 @@ class Test_Capping(unittest.TestCase):
         for use_ILP in (True, False):
             capped_molecule = getattr(uncapped_molecule, CAPPING_FUNCTION_NAME)(debug=None)
             capped_molecule.write_graph('capped_molecule_with_{0}'.format('ILP' if use_ILP else 'bruteforce'))
-            print(capped_molecule.dummy_pdb())
 
         assert capped_molecule.formula(charge=True) == 'C3H2N3P', capped_molecule.formula(charge=True)
 
@@ -507,7 +490,6 @@ class Test_Capping(unittest.TestCase):
         for use_ILP in (True, False):
             capped_molecule = getattr(uncapped_molecule, CAPPING_FUNCTION_NAME)(debug=None)
             capped_molecule.write_graph('capped_molecule_with_{0}'.format('ILP' if use_ILP else 'bruteforce'))
-            print(capped_molecule.dummy_pdb())
 
         assert capped_molecule.formula(charge=True) == 'C3H4N3P', capped_molecule.formula(charge=True)
 
@@ -548,7 +530,6 @@ class Test_Capping(unittest.TestCase):
         for use_ILP in (True, False):
             capped_molecule = getattr(uncapped_molecule, CAPPING_FUNCTION_NAME)(debug=None)
             capped_molecule.write_graph('capped_molecule_with_{0}'.format('ILP' if use_ILP else 'bruteforce'))
-            print(capped_molecule.dummy_pdb())
 
         assert capped_molecule.formula(charge=True) == 'C6H4O2', capped_molecule.formula(charge=True)
 
@@ -586,7 +567,6 @@ class Test_Capping(unittest.TestCase):
         for use_ILP in (True, False):
             capped_molecule = getattr(uncapped_molecule, CAPPING_FUNCTION_NAME)(debug=None)
             capped_molecule.write_graph('capped_molecule_with_{0}'.format('ILP' if use_ILP else 'bruteforce'))
-            print(capped_molecule.dummy_pdb())
 
         assert capped_molecule.formula(charge=True) == 'C4H4N3S 1+', capped_molecule.formula(charge=True)
 
@@ -625,7 +605,6 @@ class Test_Capping(unittest.TestCase):
         for use_ILP in (True, False):
             capped_molecule = getattr(uncapped_molecule, CAPPING_FUNCTION_NAME)(debug=None)
             capped_molecule.write_graph('capped_molecule_with_{0}'.format('ILP' if use_ILP else 'bruteforce'))
-            print(capped_molecule.dummy_pdb())
 
         assert capped_molecule.formula(charge=True) == 'C5H6O3P 1-', capped_molecule.formula(charge=True)
 
@@ -640,7 +619,6 @@ class Test_Capping(unittest.TestCase):
         for use_ILP in (True,):
             capped_molecule = getattr(uncapped_molecule, CAPPING_FUNCTION_NAME)(debug=None)
             capped_molecule.write_graph('capped_molecule_with_{0}'.format('ILP' if use_ILP else 'bruteforce'), output_size=(1200, 1200))
-            print(capped_molecule.dummy_pdb())
 
         assert capped_molecule.formula(charge=True) == 'C16H26O5', capped_molecule.formula(charge=True)
 
