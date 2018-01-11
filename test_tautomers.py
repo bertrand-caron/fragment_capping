@@ -5,23 +5,24 @@ from fragment_capping.helpers.molecule import Molecule, molecule_from_pdb_str
 
 def example_porphyrin(use_ILP: bool = True) -> None:
     with open('pdbs/tetraphenylporphyrin.pdb') as fh:
-        molecule = molecule_from_pdb_str(
+        input_molecule = molecule_from_pdb_str(
             fh.read(),
             name='porphyrin',
         )
-    molecule.remove_all_hydrogens()
-    molecule.write_graph(
+    input_molecule.remove_all_hydrogens(mark_all_uncapped=True)
+    input_molecule.write_graph(
         'input',
         output_size=(1200, 1200),
         graph_kwargs={'include_atom_index': False},
     )
-    tautomers = molecule.get_all_tautomers(
+    tautomers = input_molecule.get_all_tautomers(
         net_charge=0,
         total_number_hydrogens=30,
         enforce_octet_rule=True,
         allow_radicals=False,
     )
     for molecule in tautomers:
+        molecule.name = input_molecule.name
         molecule.write_graph(
             '',
             output_size=(1200, 1200),
@@ -30,23 +31,24 @@ def example_porphyrin(use_ILP: bool = True) -> None:
 
 def example_methylimidazole(use_ILP: bool = True) -> None:
     with open('pdbs/methylimidazole.pdb') as fh:
-        molecule = molecule_from_pdb_str(
+        input_molecule = molecule_from_pdb_str(
             fh.read(),
             name='methylimidazole',
         )
-    molecule.remove_all_hydrogens()
-    molecule.write_graph(
+    input_molecule.remove_all_hydrogens(mark_all_uncapped=True)
+    input_molecule.write_graph(
         'input',
         output_size=(600, 600),
         graph_kwargs={'include_atom_index': False},
     )
-    tautomers = molecule.get_all_tautomers(
+    tautomers = input_molecule.get_all_tautomers(
         net_charge=0,
         total_number_hydrogens=6,
         enforce_octet_rule=True,
         allow_radicals=False,
     )
     for molecule in tautomers:
+        molecule.name = input_molecule.name
         molecule.write_graph(
             '',
             output_size=(600, 600),
@@ -55,23 +57,24 @@ def example_methylimidazole(use_ILP: bool = True) -> None:
 
 def example_benzene():
     with open('pdbs/benzene.pdb') as fh:
-        molecule = molecule_from_pdb_str(
+        input_molecule = molecule_from_pdb_str(
             fh.read(),
             name='benzene',
         )
-    molecule.remove_all_hydrogens()
-    molecule.write_graph(
+    input_molecule.remove_all_hydrogens(mark_all_uncapped=True)
+    input_molecule.write_graph(
         'input',
         output_size=(600, 600),
-        graph_kwargs={'include_atom_index': False},
+        graph_kwargs={'include_atom_index': True},
     )
-    tautomers = molecule.get_all_tautomers(
+    tautomers = input_molecule.get_all_tautomers(
         net_charge=0,
         total_number_hydrogens=6,
         enforce_octet_rule=True,
         allow_radicals=False,
     )
     for molecule in tautomers:
+        molecule.name = input_molecule.name
         molecule.write_graph(
             '',
             output_size=(600, 600),
@@ -80,23 +83,24 @@ def example_benzene():
 
 def example_ethanal():
     with open('pdbs/ethanal.pdb') as fh:
-        molecule = molecule_from_pdb_str(
+        input_molecule = molecule_from_pdb_str(
             fh.read(),
             name='ethanal',
         )
-    molecule.remove_all_hydrogens(mark_all_uncapped=True)
-    molecule.write_graph(
+    input_molecule.remove_all_hydrogens(mark_all_uncapped=True)
+    input_molecule.write_graph(
         'input',
         output_size=(600, 600),
         graph_kwargs={'include_atom_index': False},
     )
-    tautomers = molecule.get_all_tautomers(
+    tautomers = input_molecule.get_all_tautomers(
         net_charge=0,
         total_number_hydrogens=4,
         enforce_octet_rule=True,
         allow_radicals=False,
     )
     for molecule in tautomers:
+        molecule.name = input_molecule.name
         molecule.write_graph(
             '',
             output_size=(600, 600),
@@ -107,7 +111,7 @@ ALL_EXAMPLES = [
     example_benzene,
     example_ethanal,
     #example_methylimidazole,
-    #example_porphyrin,
+    example_porphyrin,
 ]
 
 def main() -> None:

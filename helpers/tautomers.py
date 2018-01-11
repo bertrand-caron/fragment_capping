@@ -1,7 +1,7 @@
 from typing import List, Optional, TextIO
 from copy import deepcopy
 from operator import itemgetter
-from itertools import groupby, chain
+from itertools import groupby, chain, count
 from pulp import LpProblem, LpMinimize, LpInteger, LpVariable, LpBinary, LpStatus, lpSum
 from pulp.solvers import GUROBI_CMD
 
@@ -16,7 +16,7 @@ def get_all_tautomers_naive(
     net_charge: Optional[int] = None,
     enforce_octet_rule: bool = True,
     allow_radicals: bool = False,
-    max_tautomers: Optional[int] = 100,
+    max_tautomers: Optional[int] = None,
 ) -> List['Molecule']:
     ELECTRON_MULTIPLIER = (2 if not allow_radicals else 1)
 
@@ -128,7 +128,7 @@ def get_all_tautomers_naive(
     def new_molecule_for_current_solution(n: Optional[int] = None) -> 'Molecule':
         new_molecule = deepcopy(molecule)
         if n is not None:
-            new_molecule.name += '_tautomer_{0}'.format(n)
+            new_molecule.name += '-tautomer_{0}'.format(n)
 
         new_molecule.formal_charges, new_molecule.bond_orders, new_molecule.non_bonded_electrons = {}, {}, {}
 
@@ -159,7 +159,7 @@ def get_all_tautomers_naive(
             new_molecule.non_bonded_electrons[atom_index] = 0
             new_molecule.formal_charges[atom_index] = 0
 
-        REMOVE_UNUSED_HYDROGENS = False
+        REMOVE_UNUSED_HYDROGENS = True
         if REMOVE_UNUSED_HYDROGENS:
             [new_molecule.remove_atom_with_index(atom_index) for atom_index in atom_indices_to_delete]
 
@@ -221,6 +221,7 @@ def get_all_tautomers(
     enforce_octet_rule: bool = True,
     allow_radicals: bool = False,
     max_tautomers: Optional[int] = 100,
+    use_gurobi: bool = True,
     debug: Optional[TextIO] = None,
 ) -> 'Molecule':
     if len([1 for atom in molecule.atoms.values() if atom.element == 'H']) > 0:
@@ -370,10 +371,10 @@ def get_all_tautomers(
         for bond in molecule.bonds
     }
 
-    for ((uncapped_atom_id, i), new_bonds) in new_bonds_sets.items():
-        for new_bond in new_bonds:
-            problem += (bond_orders[new_bond] >= fragment_switches[uncapped_atom_id, i], 'Minimum bond order for fragment bond {bond_key}'.format(bond_key=bond_key(new_bond)))
-            problem += (bond_orders[new_bond] <= MAX_BOND_ORDER * fragment_switches[uncapped_atom_id, i], 'Maximum bond order for fragment bond {bond_key}'.format(bond_key=bond_key(new_bond)))
+    #for ((uncapped_atom_id, i), new_bonds) in new_bonds_sets.items():
+    #    for new_bond in new_bonds:
+    #        problem += (bond_orders[new_bond] >= fragment_switches[uncapped_atom_id, i], 'Minimum bond order for fragment bond {bond_key}'.format(bond_key=bond_key(new_bond)))
+    #        problem += (bond_orders[new_bond] <= MAX_BOND_ORDER * fragment_switches[uncapped_atom_id, i], 'Maximum bond order for fragment bond {bond_key}'.format(bond_key=bond_key(new_bond)))
 
     OBJECTIVES = [
         MIN(lpSum(absolute_charges.values())),
@@ -395,9 +396,6 @@ def get_all_tautomers(
 
     if net_charge is not None:
         problem += (lpSum(charges.values()) == molecule.net_charge, 'Known net charge={0}'.format(net_charge))
-
-    #if molecule.name == 'ethanal':
-    #    problem += bond_orders[frozenset([2, 3])] == 2
 
     for atom in non_capping_atoms:
         problem += (
@@ -502,7 +500,7 @@ def get_all_tautomers(
     all_tautomers = [new_molecule_for_current_solution(n=0)]
 
     # Remove redundant constraints from previous multi-objective optimistion
-    for constraint_name in ['1_Sequence_Objective', '2_Sequence_Objective', '3_Sequence_Objective']: #TODO
+    for constraint_name in ['1_Sequence_Objective', '2_Sequence_Objective', '3_Sequence_Objective']:
         del problem.constraints[constraint_name]
 
     # Iterate until no more tautomers are found
@@ -513,7 +511,7 @@ def get_all_tautomers(
         try:
             problem.setObjective(MIN(unique_solution_equation))
             problem.solve(
-                #solver=GUROBI_CMD(),
+                solver=GUROBI_CMD() if use_gurobi else None,
             )
         except Exception as e:
             debug_failed_ILP(n)
