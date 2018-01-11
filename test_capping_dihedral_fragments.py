@@ -1,5 +1,6 @@
 from sys import stderr
 from traceback import format_exc
+import unittest
 
 from fragment_capping.helpers.types_helpers import Atom
 from fragment_capping.helpers.molecule import Molecule
@@ -147,8 +148,11 @@ ALL_EXAMPLES = {
     ): (0, 0, 'C3H7NO', USE_OCTET_RULE, CAN_NOT_FAIL),
 }
 
-if __name__ == '__main__':
-    for (molecule, (expected_netcharge, expected_abs_netcharge, expected_formula, use_octet_rule, can_fail)) in sorted(ALL_EXAMPLES.items()):
+class Test_Dihedral_Fragment_Capping(unittest.TestCase):
+    pass
+
+for (molecule, (expected_netcharge, expected_abs_netcharge, expected_formula, use_octet_rule, can_fail)) in sorted(ALL_EXAMPLES.items()):
+    def dynamic_test(self):
         molecule.write_graph('uncapped')
         print(molecule.name + '...', end='')
         molecule.get_best_capped_molecule_with_ILP(enforce_octet_rule=use_octet_rule)
@@ -166,3 +170,12 @@ if __name__ == '__main__':
                 print(format_exc())
             else:
                 raise
+
+    setattr(
+        Test_Dihedral_Fragment_Capping,
+        'test_' + molecule.name,
+        dynamic_test,
+    )
+
+if __name__ == '__main__':
+    unittest.main()

@@ -85,23 +85,23 @@ def example_ethanal():
             name='ethanal',
         )
     molecule.remove_all_hydrogens()
-#    molecule.write_graph(
-#        'input',
-#        output_size=(600, 600),
-#        graph_kwargs={'include_atom_index': False},
-#    )
+    molecule.write_graph(
+        'input',
+        output_size=(600, 600),
+        graph_kwargs={'include_atom_index': False},
+    )
     tautomers = molecule.get_all_tautomers(
         net_charge=0,
         total_number_hydrogens=4,
         enforce_octet_rule=True,
         allow_radicals=False,
     )
-#    for (n, molecule) in enumerate(tautomers):
-#        molecule.write_graph(
-#            'tautomer_{n}'.format(n=n),
-#            output_size=(600, 600),
-#            graph_kwargs={'include_atom_index': True},
-#        )
+    for (n, molecule) in enumerate(tautomers):
+        molecule.write_graph(
+            'tautomer_{n}'.format(n=n),
+            output_size=(600, 600),
+            graph_kwargs={'include_atom_index': True},
+        )
 
 ALL_EXAMPLES = [
     example_benzene,

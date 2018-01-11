@@ -15,6 +15,7 @@ from fragment_capping.helpers.babel import energy_minimised_pdb
 from fragment_capping.helpers.rings import bonds_for_ring
 from fragment_capping.helpers.graphs import unique_molecules
 from fragment_capping.helpers.tautomers import get_all_tautomers
+from fragment_capping.helpers.capping import get_best_capped_molecule_with_ILP, get_best_capped_molecule
 from fragment_capping.helpers.misc import write_to_debug
 from fragment_capping.helpers.exceptions import No_Charges_And_Bond_Orders, Too_Many_Permutations, Not_Capped_Error
 
@@ -940,7 +941,7 @@ class Molecule:
         ) - deleted_atom_ids
 
         self.atoms = {
-            atom.index: atom if atom.index not in atoms_connected_to_deleted_atoms else atom._replace(valence=None)
+            atom.index: atom if atom.index not in atoms_connected_to_deleted_atoms else atom._replace(valence=None, capped=False)
             for atom in self.atoms.values()
             if atom.index not in deleted_atom_ids
         }
