@@ -1,5 +1,10 @@
 PYTHON_BIN_DIR = /usr/local/python35/bin
 
+test_tautomers:
+	-@rm graphs/benzene* graphs/ethanal*
+	python3 test_tautomers.py
+.PHONY: test_tautomers.py
+
 test:
 	python3 test_capping_wang.py
 	python3 test_tautomers.py

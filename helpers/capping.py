@@ -12,7 +12,7 @@ def get_best_capped_molecule_with_ILP(
 ) -> 'Molecule':
     neighbour_counts = molecule.neighbours_for_atoms()
 
-    def keep_capping_strategy_for_atom(capping_strategy: Capping_Strategy, atom: Atom):
+    def keep_capping_strategy_for_atom(capping_strategy: Capping_Strategy, atom: Atom) -> bool:
         if atom.valence is not None:
             if False:
                 if neighbour_counts[atom.index] + new_atom_for_capping_strategy(capping_strategy) == atom.valence:
@@ -84,7 +84,7 @@ def get_best_capped_molecule_with_ILP(
             pass
             print('PASS')
         else:
-            for (i, capping_strategy) in enumerate(sorted(possible_capping_strategies_for_atom(uncapped_atom)), start=1):
+            for (i, capping_strategy) in enumerate(sorted(possible_capping_strategies), start=1):
                 write_to_debug(debug, uncapped_atom, capping_strategy, i)
                 # Add switch variable
                 fragment_switches[uncapped_atom.index, i] = LpVariable(

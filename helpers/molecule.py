@@ -975,10 +975,16 @@ class Molecule:
 
         return self.renumber_atoms()
 
-    def remove_all_hydrogens(self) -> None:
-        return self.remove_atoms_with_predicate(
+    def remove_all_hydrogens(self, mark_all_uncapped: bool = False) -> None:
+        self.remove_atoms_with_predicate(
             lambda atom: atom.element == 'H',
         )
+
+        if mark_all_uncapped:
+            self.atoms = {
+                atom_index: atom._replace(capped=False)
+                for (atom_index, atom) in self.atoms.items()
+            }
 
     def remove_united_hydrogens(self) -> None:
         first_neighbours_ids = {
