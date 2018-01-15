@@ -21,10 +21,10 @@ def example_porphyrin(use_ILP: bool = True) -> None:
         enforce_octet_rule=True,
         allow_radicals=False,
     )
-    for molecule in tautomers:
+    for (n, molecule) in enumerate(tautomers):
         molecule.name = input_molecule.name
         molecule.write_graph(
-            '',
+            '_tautomer_{0}'.format(n),
             output_size=(1200, 1200),
             graph_kwargs={'include_atom_index': False},
         )
@@ -47,10 +47,10 @@ def example_methylimidazole(use_ILP: bool = True) -> None:
         enforce_octet_rule=True,
         allow_radicals=False,
     )
-    for molecule in tautomers:
+    for (n, molecule) in enumerate(tautomers):
         molecule.name = input_molecule.name
         molecule.write_graph(
-            '',
+            '_tautomer_{0}'.format(n),
             output_size=(600, 600),
             graph_kwargs={'include_atom_index': False},
         )
@@ -73,10 +73,10 @@ def example_benzene():
         enforce_octet_rule=True,
         allow_radicals=False,
     )
-    for molecule in tautomers:
+    for (n, molecule) in enumerate(tautomers):
         molecule.name = input_molecule.name
         molecule.write_graph(
-            '',
+            '_tautomer_{0}'.format(n),
             output_size=(600, 600),
             graph_kwargs={'include_atom_index': False},
         )
@@ -99,10 +99,10 @@ def example_ethanal():
         enforce_octet_rule=True,
         allow_radicals=False,
     )
-    for molecule in tautomers:
+    for (n, molecule) in enumerate(tautomers):
         molecule.name = input_molecule.name
         molecule.write_graph(
-            '',
+            '_tautomer_{0}'.format(n),
             output_size=(600, 600),
             graph_kwargs={'include_atom_index': True},
         )

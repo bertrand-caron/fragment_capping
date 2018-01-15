@@ -221,7 +221,7 @@ def get_all_tautomers(
     enforce_octet_rule: bool = True,
     allow_radicals: bool = False,
     max_tautomers: Optional[int] = 100,
-    use_gurobi: bool = True,
+    use_gurobi: bool = False,
     debug: Optional[TextIO] = None,
 ) -> 'Molecule':
     if len([1 for atom in molecule.atoms.values() if atom.element == 'H']) > 0:
