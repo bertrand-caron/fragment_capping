@@ -110,7 +110,7 @@ def example_ethanal():
 ALL_EXAMPLES = [
     example_benzene,
     example_ethanal,
-    #example_methylimidazole,
+    example_methylimidazole,
     example_porphyrin,
 ]
 

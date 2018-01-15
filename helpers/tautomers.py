@@ -11,6 +11,7 @@ from fragment_capping.helpers.parameters import MAX_ABSOLUTE_CHARGE, MIN_ABSOLUT
     H2_CAP, H3_CAP, H4_CAP, ELECTRONEGATIVITIES, new_atom_for_capping_strategy, min_valence_for
 from fragment_capping.helpers.misc import write_to_debug
 from fragment_capping.helpers.graphs import unique_molecules
+from fragment_capping.helpers.rings import bonds_in_small_rings_for, SMALL_RING
 
 def get_all_tautomers_naive(
     molecule: 'Molecule',
@@ -232,6 +233,7 @@ def get_all_tautomers(
     enforce_octet_rule: bool = True,
     allow_radicals: bool = False,
     max_tautomers: Optional[int] = 100,
+    disallow_triple_bond_in_small_rings: bool = True,
     use_gurobi: bool = False,
     debug: Optional[TextIO] = None,
 ) -> 'Molecule':
@@ -370,22 +372,23 @@ def get_all_tautomers(
     bond_reverse_mapping = {v: k for (k, v) in bond_mapping.items()}
     bond_key = lambda bond: ','.join(map(str, sorted(bond)))
 
+    if disallow_triple_bond_in_small_rings:
+        write_to_debug(debug, 'Note: Excluding triple bonds in small rings (<= {0})'.format(SMALL_RING))
+        bonds_in_small_rings = bonds_in_small_rings_for(molecule)
+    else:
+        bonds_in_small_rings = set()
+
     bond_orders = {
         bond: LpVariable(
             "B_{bond_key}".format(bond_key=bond_key(bond)),
             MIN_BOND_ORDER,
-            MAX_BOND_ORDER,
+            MAX_BOND_ORDER if bond not in bonds_in_small_rings else 2,
             LpInteger,
         )
         if bond not in fragment_switch_for_bond
         else fragment_switch_for_bond[bond]
         for bond in molecule.bonds
     }
-
-    #for ((uncapped_atom_id, i), new_bonds) in new_bonds_sets.items():
-    #    for new_bond in new_bonds:
-    #        problem += (bond_orders[new_bond] >= fragment_switches[uncapped_atom_id, i], 'Minimum bond order for fragment bond {bond_key}'.format(bond_key=bond_key(new_bond)))
-    #        problem += (bond_orders[new_bond] <= MAX_BOND_ORDER * fragment_switches[uncapped_atom_id, i], 'Maximum bond order for fragment bond {bond_key}'.format(bond_key=bond_key(new_bond)))
 
     OBJECTIVES = [
         MIN(lpSum(absolute_charges.values())),
