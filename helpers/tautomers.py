@@ -6,7 +6,9 @@ from pulp import LpProblem, LpMinimize, LpInteger, LpVariable, LpBinary, LpStatu
 from pulp.solvers import GUROBI_CMD
 
 from fragment_capping.helpers.types_helpers import Atom, MIN, MAX
-from fragment_capping.helpers.parameters import MAX_ABSOLUTE_CHARGE, MIN_ABSOLUTE_CHARGE, MAX_NONBONDED_ELECTRONS, MAX_BOND_ORDER, MIN_BOND_ORDER, VALENCE_ELECTRONS, ELECTRONS_PER_BOND, MUST_BE_INT, Capping_Strategy, NO_CAP, H_CAP, H2_CAP, H3_CAP, H4_CAP, ELECTRONEGATIVITIES
+from fragment_capping.helpers.parameters import MAX_ABSOLUTE_CHARGE, MIN_ABSOLUTE_CHARGE, MAX_NONBONDED_ELECTRONS, \
+    MAX_BOND_ORDER, MIN_BOND_ORDER, VALENCE_ELECTRONS, ELECTRONS_PER_BOND, MUST_BE_INT, Capping_Strategy, NO_CAP, H_CAP, \
+    H2_CAP, H3_CAP, H4_CAP, ELECTRONEGATIVITIES, new_atom_for_capping_strategy, min_valence_for
 from fragment_capping.helpers.misc import write_to_debug
 from fragment_capping.helpers.graphs import unique_molecules
 
@@ -120,10 +122,9 @@ def get_all_tautomers_naive(
     capping_atom_for_bond = lambda atom_index, bond: list({atom.index} & bond)[0]
     bond_for_capping_atom_id = lambda atom_index: [bond for bond in molecule.bonds if atom_index in bond][0]
 
-    unique_solution_equation = sum(2**i * v for (i, v) in enumerate([bond_orders[bond] for bond in capping_bonds]))
-
     def encode_solution() -> int:
-        return sum(2**i * int(v.varValue) for (i, v) in enumerate([bond_orders[bond] for bond in capping_bonds]))
+        # bitshift is faster than multiplication by 2**i
+        return sum(int(v.varValue) << i for i, v in enumerate([bond_orders[bond] for bond in capping_bonds]))
 
     def new_molecule_for_current_solution(n: Optional[int] = None) -> 'Molecule':
         new_molecule = deepcopy(molecule)
@@ -176,10 +177,10 @@ def get_all_tautomers_naive(
         problem.writeLP(debug_filename)
         print('Failed LP written to "{0}"'.format(debug_filename))
 
-    # Solve once to find optimal solution with lowest encode_solution()
+    # Solve once to find optimal solution
     try:
         print('Solving')
-        problem.sequentialSolve(OBJECTIVES + [MIN(unique_solution_equation)])
+        problem.sequentialSolve(OBJECTIVES)
     except Exception as e:
         problem.writeLP('debug.lp')
         new_molecule.write_graph('DEBUG', output_size=(2000, 2000))
@@ -190,15 +191,23 @@ def get_all_tautomers_naive(
 
     # Remove redundant constraints from previous multi-objective optimistion
     for constraint_name in ['1_Sequence_Objective', '2_Sequence_Objective']:
-        del problem.constraints[constraint_name]
+        if constraint_name in problem.constraints:
+            del problem.constraints[constraint_name]
 
     # Iterate until no more tautomers are found
+    solutions = []
     for n in (count(1) if max_tautomers is None else range(1, max_tautomers)):
-        problem += unique_solution_equation >= encode_solution() + 1, 'Solution {n}'.format(n=n)
-        print('Excluding all solution below {0}'.format(encode_solution()))
+        # exclude current optimal solution F*: \sum_{i}|F_i - F*_i| >= 1
+        problem += \
+            sum(v for v in [bond_orders[bond] for bond in capping_bonds] if not v.varValue) + \
+            sum(1 - v for v in [bond_orders[bond] for bond in capping_bonds] if v.varValue) >= 1, \
+            'Solution {n}'.format(n=n)
+
+        s = encode_solution()
+        print('Excluding solution {0}'.format(s))
+        solutions.append(s)
 
         try:
-            problem.setObjective(MIN(unique_solution_equation))
             problem.solve()
         except Exception as e:
             debug_failed_ILP()
@@ -212,6 +221,8 @@ def get_all_tautomers_naive(
 
         all_tautomers.append(new_molecule_for_current_solution(n=n))
 
+    # check that all solutions are unique
+    assert len(solutions) == len(set(solutions))
     return unique_molecules(all_tautomers)
 
 def get_all_tautomers(
@@ -427,10 +438,9 @@ def get_all_tautomers(
         problem.writeLP(debug_filename)
         print('Failed LP written to "{0}"'.format(debug_filename))
 
-    unique_solution_equation = sum(2**i * v for (i, v) in enumerate(fragment_switches.values()))
-
     def encode_solution() -> int:
-        return sum(2**i * int(v.varValue) for (i, v) in enumerate(fragment_switches.values()))
+        # bitshift is faster than multiplication by 2**i
+        return sum(int(v.varValue) << i for i, v in enumerate(fragment_switches.values()))
 
     def new_molecule_for_current_solution(n: Optional[int] = None) -> 'Molecule':
         new_molecule = deepcopy(molecule)
@@ -503,13 +513,20 @@ def get_all_tautomers(
     for constraint_name in ['1_Sequence_Objective', '2_Sequence_Objective', '3_Sequence_Objective']:
         del problem.constraints[constraint_name]
 
+    solutions = []
     # Iterate until no more tautomers are found
     for n in (count(1) if max_tautomers is None else range(1, max_tautomers)):
-        problem += unique_solution_equation >= encode_solution() + 1, 'Solution {n}'.format(n=n)
-        print('Excluding all solution below {0}'.format(encode_solution()))
+        # exclude current optimal solution F*: \sum_{i}|F_i - F*_i| >= 1
+        problem += \
+            sum(v for v in fragment_switches.values() if not v.varValue) + \
+            sum(1 - v for v in fragment_switches.values() if v.varValue) >= 1,\
+            'Solution {n}'.format(n=n)
+
+        s = encode_solution()
+        print('Excluding solution {0}'.format(s))
+        solutions.append(s)
 
         try:
-            problem.setObjective(MIN(unique_solution_equation))
             problem.solve(
                 solver=GUROBI_CMD() if use_gurobi else None,
             )
@@ -526,4 +543,6 @@ def get_all_tautomers(
 
         all_tautomers.append(new_molecule_for_current_solution(n=n))
 
+    # check that all solutions are unique
+    assert len(solutions) == len(set(solutions))
     return unique_molecules(all_tautomers)
