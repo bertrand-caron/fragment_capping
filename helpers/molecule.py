@@ -249,7 +249,10 @@ class Molecule:
 
         graph_filepath = join(FRAGMENT_CAPPING_DIR, 'graphs' ,'_'.join((self.name, str(unique_id))) + '.pdf')
         try:
-            from chem_graph_tool.moieties import draw_graph, sfdp_layout
+            try:
+                from chem_graph_tool.moieties import draw_graph, sfdp_layout
+            except ImportError:
+                raise ImportError("Please download chem_graph_tool (https://github.com/bertrand-caron/chem_graph_tool) and make sure it can be found in your PYTHONPATH. You'll also need graph-tool (https://graph-tool.skewed.de)")
             graph = self.graph(g=g, **graph_kwargs)
 
             if pos is None:
