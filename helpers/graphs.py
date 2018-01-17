@@ -17,7 +17,7 @@ def lewis_graph(molecule: 'Molecule') -> Graph:
 
     return G
 
-def unique_molecules(molecules: List['Molecule']) -> List['Molecule']:
+def unique_molecules(molecules: List['Molecule'], debug: bool = False) -> List['Molecule']:
     '''
     Return list of one-by-one non-isomorphic graphs (including bond order, chemical elements and number of lone pairs)
     '''
@@ -28,8 +28,10 @@ def unique_molecules(molecules: List['Molecule']) -> List['Molecule']:
 
     unique_molecules: List[Tuple['Molecules', Graph]] = []
 
+    print_if_debug = lambda *args, **kwargs: print(*args, **Kwargs) if debug else None
+
     for (molecule_1, graph_1) in zip(molecules, lewis_graphs):
-        print('Assessing {0} (unique_molecules={1})'.format(molecule_1.name, [m.name for (m, _) in unique_molecules]))
+        print_if_debug('Assessing {0} (unique_molecules={1})'.format(molecule_1.name, [m.name for (m, _) in unique_molecules]))
         if all(
             not is_isomorphic(
                 graph_1,
@@ -39,12 +41,12 @@ def unique_molecules(molecules: List['Molecule']) -> List['Molecule']:
             )
             for (_, graph_2) in unique_molecules
         ):
-            print('UNIQUE: {0}'.format(molecule_1.name))
+            print_if_debug('UNIQUE: {0}'.format(molecule_1.name))
             unique_molecules.append(
                 (molecule_1, graph_1),
             )
         else:
-            print('NOT UNIQUE: {0}'.format(molecule_1.name))
+            print_if_debug('NOT UNIQUE: {0}'.format(molecule_1.name))
 
     return [
         molecule

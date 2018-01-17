@@ -9,9 +9,9 @@ from fragment_capping.helpers.types_helpers import Atom, MIN, MAX
 from fragment_capping.helpers.parameters import MAX_ABSOLUTE_CHARGE, MIN_ABSOLUTE_CHARGE, MAX_NONBONDED_ELECTRONS, \
     MAX_BOND_ORDER, MIN_BOND_ORDER, VALENCE_ELECTRONS, ELECTRONS_PER_BOND, MUST_BE_INT, Capping_Strategy, NO_CAP, H_CAP, \
     H2_CAP, H3_CAP, H4_CAP, ELECTRONEGATIVITIES, new_atom_for_capping_strategy, min_valence_for
-from fragment_capping.helpers.misc import write_to_debug
+from fragment_capping.helpers.misc import write_to_debug, atom_short_desc
 from fragment_capping.helpers.graphs import unique_molecules
-from fragment_capping.helpers.rings import bonds_in_small_rings_for, SMALL_RING
+from fragment_capping.helpers.rings import bonds_in_small_rings_for, SMALL_RING, atoms_in_small_rings_for
 
 def get_all_tautomers_naive(
     molecule: 'Molecule',
@@ -53,6 +53,8 @@ def get_all_tautomers_naive(
         for bond in molecule.bonds
         if len(bond & capping_atom_ids) != 0
     }
+
+    non_capping_bonds = molecule.bonds - capping_bonds
 
     charges = {
         atom.index: LpVariable("C_{i}".format(i=atom.index), -MAX_ABSOLUTE_CHARGE, MAX_ABSOLUTE_CHARGE, LpInteger)
@@ -107,7 +109,7 @@ def get_all_tautomers_naive(
     OBJECTIVES.append(MAX(sum(non_bonded_electrons.values())))
 
     for atom in map(lambda atom_index: molecule.atoms[atom_index], charges.keys()):
-        problem += charges[atom.index] == VALENCE_ELECTRONS[atom.element] - sum([bond_orders[bond] for bond in molecule.bonds if atom.index in bond]) - ELECTRON_MULTIPLIER * non_bonded_electrons[atom.index], '{element}_{index}'.format(element=atom.element, index=atom.index)
+        problem += charges[atom.index] == VALENCE_ELECTRONS[atom.element] - sum([bond_orders[bond] for bond in molecule.bonds if atom.index in bond]) - ELECTRON_MULTIPLIER * non_bonded_electrons[atom.index], atom_short_desc(atom)
 
         # Deal with absolute values
         problem += charges[atom.index] <= absolute_charges[atom.index], 'Absolute charge contraint left {i}'.format(i=atom.index)
@@ -180,7 +182,7 @@ def get_all_tautomers_naive(
 
     # Solve once to find optimal solution
     try:
-        print('Solving')
+        write_to_debug(debug, 'Solving')
         problem.sequentialSolve(OBJECTIVES)
     except Exception as e:
         problem.writeLP('debug.lp')
@@ -205,7 +207,7 @@ def get_all_tautomers_naive(
             'Solution {n}'.format(n=n)
 
         s = encode_solution()
-        print('Excluding solution {0}'.format(s))
+        write_to_debug(debug, 'Excluding solution {0}'.format(s))
         solutions.append(s)
 
         try:
@@ -217,7 +219,7 @@ def get_all_tautomers_naive(
         if problem.status == 1:
             pass
         else:
-            print(problem.status, LpStatus[problem.status])
+            write_to_debug(debug, problem.status, LpStatus[problem.status])
             break
 
         all_tautomers.append(new_molecule_for_current_solution(n=n))
@@ -232,9 +234,10 @@ def get_all_tautomers(
     net_charge: Optional[int] = None,
     enforce_octet_rule: bool = True,
     allow_radicals: bool = False,
-    max_tautomers: Optional[int] = 100,
+    max_tautomers: Optional[int] = 2000,
     disallow_triple_bond_in_small_rings: bool = True,
-    use_gurobi: bool = False,
+    disallow_allenes_in_small_rings: bool = True,
+    use_gurobi: bool = True,
     debug: Optional[TextIO] = None,
 ) -> 'Molecule':
     if len([1 for atom in molecule.atoms.values() if atom.element == 'H']) > 0:
@@ -291,7 +294,6 @@ def get_all_tautomers(
         possible_capping_strategies = possible_capping_strategies_for_atom(uncapped_atom)
         if len(possible_capping_strategies) == 0 or len(possible_capping_strategies) == 1 and possible_capping_strategies[0] == NO_CAP:
             pass
-            print('PASS')
         else:
             for (i, capping_strategy) in enumerate(sorted(possible_capping_strategies), start=1):
                 write_to_debug(debug, uncapped_atom, capping_strategy, i)
@@ -311,7 +313,7 @@ def get_all_tautomers(
                 fragment_H_scores[uncapped_atom.index, i] = len([atom for atom in capping_atoms_for[uncapped_atom.index, i] if atom.element == 'H'])
 
             # Only choose one capping strategy at a time
-            problem += (lpSum(F_i for ((atom_id, _), F_i) in fragment_switches.items() if atom_id == uncapped_atom.index) == 1, 'Single capping strategy for atom {element}_{index}'.format(element=uncapped_atom.element, index=uncapped_atom.index))
+            problem += (lpSum(F_i for ((atom_id, _), F_i) in fragment_switches.items() if atom_id == uncapped_atom.index) == 1, 'Single capping strategy for atom {atom_desc}'.format(atom_desc=atom_short_desc(uncapped_atom)))
 
     all_capping_atoms = {atom for atoms in capping_atoms_for.values() for atom in atoms}
     all_capping_atom_ids = {atom.index for atom in all_capping_atoms}
@@ -340,6 +342,11 @@ def get_all_tautomers(
                 if len(bonds) == 0
             ]
         )
+    }
+
+    non_capping_bonds = {
+        bond for bond in molecule.bonds
+        if len(bond & all_capping_atom_ids) == 0
     }
 
     if True:
@@ -436,6 +443,13 @@ def get_all_tautomers(
                     'Octet for atom {element}_{index}'.format(element=atom.element, index=atom.index),
                 )
 
+    for atom in atoms_in_small_rings_for(molecule):
+        if disallow_allenes_in_small_rings:
+            if atom.element in ['C', 'N']:
+                adjacent_non_hydrogen_bonds = [bond for bond in non_capping_bonds if atom.index in bond]
+                if len(adjacent_non_hydrogen_bonds) == 2:
+                    problem += sum(bond_orders[bond] for bond in adjacent_non_hydrogen_bonds) <= 3, 'No allenes for atom {atom_desc} in short ring'.format(atom_desc=atom_short_desc(atom))
+
     def debug_failed_ILP(n: Optional[int] = None) -> None:
         debug_filename = 'debug{0}.lp'.format('' if n is None else '_{n}'.format(n=n))
         problem.writeLP(debug_filename)
@@ -509,7 +523,9 @@ def get_all_tautomers(
         debug_failed_ILP(0)
         raise
 
-    debug_failed_ILP(0)
+    if debug is not None:
+        debug_failed_ILP(0)
+
     all_tautomers = [new_molecule_for_current_solution(n=0)]
 
     # Remove redundant constraints from previous multi-objective optimistion
@@ -526,7 +542,7 @@ def get_all_tautomers(
             'Solution {n}'.format(n=n)
 
         s = encode_solution()
-        print('Excluding solution {0}'.format(s))
+        write_to_debug(debug, 'Excluding solution {0}'.format(s))
         solutions.append(s)
 
         try:
@@ -540,8 +556,9 @@ def get_all_tautomers(
         if problem.status == 1:
             pass
         else:
-            print(problem.status, LpStatus[problem.status])
-            debug_failed_ILP(n)
+            write_to_debug(debug, problem.status, LpStatus[problem.status])
+            if debug is not None:
+                debug_failed_ILP(n)
             break
 
         all_tautomers.append(new_molecule_for_current_solution(n=n))
