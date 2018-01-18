@@ -237,9 +237,19 @@ def get_all_tautomers(
     max_tautomers: Optional[int] = 2000,
     disallow_triple_bond_in_small_rings: bool = True,
     disallow_allenes_in_small_rings: bool = True,
-    use_gurobi: bool = True,
+    lock_phenyl_rings: bool = True,
+    use_gurobi: bool = False,
     debug: Optional[TextIO] = None,
 ) -> 'Molecule':
+    '''
+    Args:
+        ``disallow_triple_bond_in_small_rings``: Disallow triple bonds in small rings (rings with size <= ``SMALL_RING``)
+        ``disallow_allenes_in_small_rings``: Disallow allenes (=C=) in small rings (rings with size <= ``SMALL_RING``)
+        ``lock_phenyl_rings``: Prevent phenyl rings (6 membered rings with all sp3 carbons) from being hydrogenised.
+
+    Returns:
+        A list of tautomers (Molecule).
+    '''
     if len([1 for atom in molecule.atoms.values() if atom.element == 'H']) > 0:
         molecule.remove_all_hydrogens(mark_all_uncapped=True)
 
@@ -254,31 +264,18 @@ def get_all_tautomers(
         else:
             return min_valence_for(atom) <= neighbour_counts[atom.index] + new_atom_for_capping_strategy(capping_strategy) <= max_valence_for(atom)
 
-    def possible_capping_strategies_for_atom(atom: Atom) -> List[Capping_Strategy]:
-        return [NO_CAP, H_CAP, H2_CAP, H3_CAP] + ([H4_CAP] if False else [])
-#        if debug is not None:
-#            write_to_debug(debug, '')
-#            write_to_debug(debug, atom)
-#            write_to_debug(debug, 'capping_strategy, new_atom_for_capping_strategy(), keep_capping_strategy_for_atom()')
-#            for capping_strategy in ALL_CAPPING_OPTIONS[molecule.atom_desc(atom)]:
-#                write_to_debug(
-#                    debug,
-#                    capping_strategy,
-#                    new_atom_for_capping_strategy(capping_strategy),
-#                    keep_capping_strategy_for_atom(capping_strategy, atom)
-#                )
-#        return [
-#            capping_strategy
-#            for capping_strategy in ALL_CAPPING_OPTIONS[molecule.atom_desc(atom)]
-#            if keep_capping_strategy_for_atom(capping_strategy, atom)
-#        ]
+    def possible_capping_strategies_for_atom(atom: Atom, is_phenyl_atom: bool = False) -> List[Capping_Strategy]:
+        if is_phenyl_atom and lock_phenyl_rings:
+            return [NO_CAP, H_CAP]
+        else:
+            return [NO_CAP, H_CAP, H2_CAP, H3_CAP] + ([H4_CAP] if False else [])
 
     atoms_need_capping = [atom for atom in molecule.sorted_atoms() if not atom.capped]
 
     write_to_debug(
         debug,
         [
-            possible_capping_strategies_for_atom(atom)
+            possible_capping_strategies_for_atom(atom, is_phenyl_atom=(atom.index in molecule.phenyl_atoms))
             for atom in atoms_need_capping
         ],
     )
@@ -291,7 +288,7 @@ def get_all_tautomers(
     capping_atoms_for = {}
     new_bonds_sets = {}
     for uncapped_atom in atoms_need_capping:
-        possible_capping_strategies = possible_capping_strategies_for_atom(uncapped_atom)
+        possible_capping_strategies = possible_capping_strategies_for_atom(uncapped_atom, is_phenyl_atom=(uncapped_atom.index in molecule.phenyl_atoms))
         if len(possible_capping_strategies) == 0 or len(possible_capping_strategies) == 1 and possible_capping_strategies[0] == NO_CAP:
             pass
         else:

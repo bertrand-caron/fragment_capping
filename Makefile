@@ -1,7 +1,7 @@
 PYTHON_BIN_DIR = /usr/local/python35/bin
 
 test_tautomers:
-	-@rm graphs/benzene* graphs/ethanal* graphs/propadiene*.pdf graphs/cyclooctyne*.pdf graphs/methylimidazole*.pdf graphs/porphyrin*.pdf
+	-@rm graphs/*tautomer*.pdf
 	python3 test_tautomers.py
 .PHONY: test_tautomers.py
 
