@@ -6,6 +6,15 @@
 
 Aim: Finding appropriate molecules to parametrise dihedral fragments on.
 
+## Standard-dependencies
+
+See `requirements.txt`. Install dependencies by running `make setup`.
+
+* `Python >=3.5`
+* `pulp`
+* `networkx`
+* `numpy`
+
 ## Non-standard dependencies
 
 * [graph_tool](https://graph-tool.skewed.de): Efficient network-analysis with Python

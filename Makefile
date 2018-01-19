@@ -36,3 +36,7 @@ MMFF94: MMFF94.tar.gz
 	mkdir $@
 	gunzip -c MMFF94.tar.gz | tar xvo --directory MMFF94
 .PHONY: MMFF94
+
+setup: requirements.txt
+	pip install -r requirements.txt
+.PHONY: setup
