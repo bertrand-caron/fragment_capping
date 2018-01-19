@@ -1,3 +1,5 @@
+[![DOI](https://zenodo.org/badge/96262215.svg)](https://zenodo.org/badge/latestdoi/96262215)
+
 # Exhaustive fragment capping
 
 ## Introduction
