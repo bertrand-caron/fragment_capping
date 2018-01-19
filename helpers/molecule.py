@@ -256,7 +256,7 @@ class Molecule:
                 from chem_graph_tool.moieties import draw_graph, sfdp_layout
             except ImportError:
                 if SOFT_IMPORT_FAIL:
-                    warn("ERROR: Please download chem_graph_tool (https://github.com/bertrand-caron/chem_graph_tool) and make sure it can be found in your PYTHONPATH. You'll also need graph-tool (https://graph-tool.skewed.de)", Warning)
+                    stderr.write('\n' + "ERROR: Please download chem_graph_tool (https://github.com/bertrand-caron/chem_graph_tool) and make sure it can be found in your PYTHONPATH. You'll also need graph-tool (https://graph-tool.skewed.de)")
                     return None
                 else:
                     raise ImportError("Please download chem_graph_tool (https://github.com/bertrand-caron/chem_graph_tool) and make sure it can be found in your PYTHONPATH. You'll also need graph-tool (https://graph-tool.skewed.de)")
