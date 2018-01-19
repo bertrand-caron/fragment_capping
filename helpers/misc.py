@@ -1,4 +1,4 @@
-from typing import Optional, TextIO, Sequence, Any
+from typing import Optional, TextIO, Sequence, Any, Callable
 
 from fragment_capping.helpers.types_helpers import Atom
 

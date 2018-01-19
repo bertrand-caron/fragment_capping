@@ -237,15 +237,17 @@ def get_all_tautomers(
     max_tautomers: Optional[int] = 2000,
     disallow_triple_bond_in_small_rings: bool = True,
     disallow_allenes_in_small_rings: bool = True,
+    disallow_allenes_completely: bool = True,
     lock_phenyl_rings: bool = True,
     use_gurobi: bool = False,
     debug: Optional[TextIO] = None,
 ) -> 'Molecule':
     '''
     Args:
-        ``disallow_triple_bond_in_small_rings``: Disallow triple bonds in small rings (rings with size <= ``SMALL_RING``)
-        ``disallow_allenes_in_small_rings``: Disallow allenes (=C=) in small rings (rings with size <= ``SMALL_RING``)
+        ``disallow_triple_bond_in_small_rings``: Disallow triple bonds in small rings (rings with size <= ``SMALL_RING``).
+        ``disallow_allenes_in_small_rings``: Disallow allenes (=C=) in small rings (rings with size <= ``SMALL_RING``).
         ``lock_phenyl_rings``: Prevent phenyl rings (6 membered rings with all sp3 carbons) from being hydrogenised.
+        ``disallow_allenes_completely``: Disallow allenes (=C=) completely.
 
     Returns:
         A list of tautomers (Molecule).
@@ -283,6 +285,13 @@ def get_all_tautomers(
     problem = LpProblem("Tautomer enumeration problem for molecule {0}".format(molecule.name), LpMinimize)
 
     ELECTRON_MULTIPLIER = (2 if not allow_radicals else 1)
+
+    non_allene_atoms = {}
+    for atom in molecule.atoms.values():
+        if disallow_allenes_completely:
+            atom_bonds = [bond for bond in molecule.bonds if atom.index in bond]
+            if atom.element == 'C' and len(atom_bonds) == 2:
+                non_allene_atoms[atom] = atom_bonds
 
     fragment_switches, fragment_scores, fragment_H_scores = {}, {}, {}
     capping_atoms_for = {}
@@ -440,6 +449,11 @@ def get_all_tautomers(
                     'Octet for atom {element}_{index}'.format(element=atom.element, index=atom.index),
                 )
 
+    for (atom, (bond_1, bond_2)) in non_allene_atoms.items():
+        new_allene_switch = LpVariable('A_{i}'.format(i=atom.index), 0, 1, LpBinary)
+        problem += 2 * bond_orders[bond_1] - bond_orders[bond_2] + 4 * new_allene_switch >= 3
+        problem += 2 * bond_orders[bond_1] - bond_orders[bond_2] + 4 * new_allene_switch <= 5
+
     for atom in atoms_in_small_rings_for(molecule):
         if disallow_allenes_in_small_rings:
             if atom.element in ['C', 'N']:
@@ -478,6 +492,8 @@ def get_all_tautomers(
                     bond = frozenset(map(int, variable_substr.split(',')))
                     new_molecule.bond_orders[bond] = MUST_BE_INT(v.varValue)
             elif variable_type == 'Z':
+                pass
+            elif variable_type == 'A':
                 pass
             elif variable_type == 'N':
                 atom_index = int(variable_substr)

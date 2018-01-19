@@ -24,7 +24,7 @@ class Test_Capping(unittest.TestCase):
             allow_radicals=False,
         )
 
-        assert len(tautomers) == 52, tautomers
+        assert len(tautomers) == 43, len(tautomers)
 
         for (n, molecule) in enumerate(tautomers, start=1):
             molecule.name = input_molecule.name
@@ -53,7 +53,7 @@ class Test_Capping(unittest.TestCase):
             allow_radicals=False,
         )
 
-        assert len(tautomers) == 21, tautomers
+        assert len(tautomers) == 21, len(tautomers)
 
         for (n, molecule) in enumerate(tautomers, start=1):
             molecule.name = input_molecule.name
@@ -108,7 +108,7 @@ class Test_Capping(unittest.TestCase):
             allow_radicals=False,
         )
 
-        assert len(tautomers) == 1, tautomers
+        assert len(tautomers) == 1, len(tautomers)
 
         for (n, molecule) in enumerate(tautomers, start=1):
             molecule.name = input_molecule.name
@@ -137,7 +137,7 @@ class Test_Capping(unittest.TestCase):
             allow_radicals=False,
         )
 
-        assert len(tautomers) == 2, tautomers
+        assert len(tautomers) == 2, len(tautomers)
 
         for (n, molecule) in enumerate(tautomers, start=1):
             molecule.name = input_molecule.name
@@ -164,9 +164,10 @@ class Test_Capping(unittest.TestCase):
             total_number_hydrogens=4,
             enforce_octet_rule=True,
             allow_radicals=False,
+            disallow_allenes_completely=False,
         )
 
-        assert len(tautomers) == 2, tautomers
+        assert len(tautomers) == 2, len(tautomers)
 
         for (n, molecule) in enumerate(tautomers, start=1):
             molecule.name = input_molecule.name
@@ -195,7 +196,7 @@ class Test_Capping(unittest.TestCase):
             allow_radicals=False,
         )
 
-        assert len(tautomers) == 5, tautomers
+        assert len(tautomers) == 4, len(tautomers)
 
         for (n, molecule) in enumerate(tautomers, start=1):
             molecule.name = input_molecule.name
