@@ -8,6 +8,7 @@ from os.path import join
 from hashlib import md5
 from sys import stderr
 from math import sqrt
+from warnings import warn
 
 from fragment_capping.helpers.types_helpers import Fragment, ATB_Molid, Atom, FRAGMENT_CAPPING_DIR, Bond, ATOM_INDEX, MIN, MAX
 from fragment_capping.helpers.parameters import FULL_VALENCES, POSSIBLE_CHARGES,  Capping_Strategy, possible_bond_order_for_atom_pair, coordinates_n_angstroms_away_from, possible_charge_for_atom, ALL_ELEMENTS, electronegativity_spread, ELECTRONEGATIVITIES, VALENCE_ELECTRONS, MIN_ABSOLUTE_CHARGE, MAX_ABSOLUTE_CHARGE, MIN_BOND_ORDER, MAX_BOND_ORDER, MUST_BE_INT, MAX_NONBONDED_ELECTRONS, NO_CAP, ELECTRONS_PER_BOND, ALL_CAPPING_OPTIONS
@@ -244,16 +245,21 @@ class Molecule:
         g: Optional[Any] = None,
         pos: Optional[PropertyMap] = None,
         **kwargs: Dict[str, Any]
-    ) -> Tuple[str, PropertyMap, Any]:
+    ) -> Optional[Tuple[str, PropertyMap, Any]]:
         if output_size is None:
             output_size = [int(sqrt(len(self.atoms) / 3) * 300)] * 2
 
         graph_filepath = join(FRAGMENT_CAPPING_DIR, 'graphs' ,'_'.join((self.name, str(unique_id))) + '.pdf')
         try:
+            SOFT_IMPORT_FAIL = True
             try:
                 from chem_graph_tool.moieties import draw_graph, sfdp_layout
             except ImportError:
-                raise ImportError("Please download chem_graph_tool (https://github.com/bertrand-caron/chem_graph_tool) and make sure it can be found in your PYTHONPATH. You'll also need graph-tool (https://graph-tool.skewed.de)")
+                if SOFT_IMPORT_FAIL:
+                    warn("ERROR: Please download chem_graph_tool (https://github.com/bertrand-caron/chem_graph_tool) and make sure it can be found in your PYTHONPATH. You'll also need graph-tool (https://graph-tool.skewed.de)", Warning)
+                    return None
+                else:
+                    raise ImportError("Please download chem_graph_tool (https://github.com/bertrand-caron/chem_graph_tool) and make sure it can be found in your PYTHONPATH. You'll also need graph-tool (https://graph-tool.skewed.de)")
             graph = self.graph(g=g, **graph_kwargs)
 
             if pos is None:
