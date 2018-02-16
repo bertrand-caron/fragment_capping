@@ -975,7 +975,7 @@ class Molecule:
                 if atom_index not in deleted_atom_ids
             }
 
-        if self.formal_charges is not None:
+        if self.bond_orders is not None:
             self.bond_orders = {
                 bond: bond_order
                 for (bond, bond_order) in self.bond_orders.items()
@@ -987,6 +987,13 @@ class Molecule:
                 bond
                 for bond in self.aromatic_bonds
                 if bond in self.bonds
+            }
+
+        if self.non_bonded_electrons is not None:
+            self.non_bonded_electrons = {
+                atom_index: non_bonded_electrons
+                for (atom_index, non_bonded_electrons) in self.non_bonded_electrons.items()
+                if atom_index not in deleted_atom_ids
             }
 
         return self.renumber_atoms()
