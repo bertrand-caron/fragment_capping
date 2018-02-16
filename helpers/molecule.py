@@ -750,6 +750,8 @@ class Molecule:
         from pulp import LpProblem, LpMinimize, LpInteger, LpVariable, LpBinary, LpStatus
         from pulp.solvers import PulpSolverError
 
+        assert not (allow_radicals and enforce_octet_rule), "Can't simultaneously allow_radicals and enforce octet rule."
+
         problem = LpProblem("Lewis problem (bond order and charge assignment) for molecule {0}".format(self.name), LpMinimize)
 
         ELECTRON_MULTIPLIER = (2 if not allow_radicals else 1)
@@ -816,9 +818,11 @@ class Molecule:
             problem.sequentialSolve(OBJECTIVES)
             assert problem.status == 1, (self.name, LpStatus[problem.status])
         except (AssertionError, PulpSolverError) as e:
-            problem.writeLP('debug.lp')
+            args_id = ','.join(map(str, [enforce_octet_rule, allow_radicals, bond_order_constraints]))
+            debug_file = '{0}_{1}_debug.lp'.format(self.name, args_id)
+            problem.writeLP(debug_file)
             self.write_graph('DEBUG', output_size=(1000, 1000))
-            print('Failed LP written to "debug.lp"')
+            print('Failed LP written to "{0}"'.format(debug_file))
             raise
 
         self.formal_charges, self.bond_orders, self.non_bonded_electrons = {}, {}, {}
