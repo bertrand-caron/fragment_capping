@@ -822,7 +822,7 @@ class Molecule:
             debug_file = '{0}_{1}_debug.lp'.format(self.name, args_id)
             problem.writeLP(debug_file)
             self.write_graph('DEBUG', output_size=(1000, 1000))
-            print('Failed LP written to "{0}"'.format(debug_file))
+            stderr.write('\n' + 'Failed LP written to "{0}"'.format(debug_file))
             raise
 
         self.formal_charges, self.bond_orders, self.non_bonded_electrons = {}, {}, {}
