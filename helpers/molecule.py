@@ -939,7 +939,7 @@ class Molecule:
 
         return None
 
-    def remove_atoms_with_predicate(self, predicate: Callable[[Atom], bool]) -> None:
+    def remove_atoms_with_predicate(self, predicate: Callable[[Atom], bool], reset_valences: bool = True, reset_capped: bool = True) -> None:
         deleted_atom_ids = {
             atom.index
             for atom in self.atoms.values()
@@ -957,7 +957,7 @@ class Molecule:
         ) - deleted_atom_ids
 
         self.atoms = {
-            atom.index: atom if atom.index not in atoms_connected_to_deleted_atoms else atom._replace(valence=None, capped=False)
+            atom.index: atom if atom.index not in atoms_connected_to_deleted_atoms else atom._replace(**{'valence':None} if reset_valences else {}, **{'capped': False} if reset_capped else {})
             for atom in self.atoms.values()
             if atom.index not in deleted_atom_ids
         }
@@ -1005,7 +1005,7 @@ class Molecule:
                 for (atom_index, atom) in self.atoms.items()
             }
 
-    def remove_united_hydrogens(self) -> None:
+    def remove_united_hydrogens(self, **kwargs: Dict[str, Any]) -> None:
         first_neighbours_ids = {
             atom.index: reduce(
                 lambda acc, e: acc | e,
@@ -1024,6 +1024,7 @@ class Molecule:
                     {self.formal_charges[neighbour_index] for neighbour_index in first_neighbours_ids[atom.index]} == {0},
                 ]
             ),
+            **kwargs,
         )
 
     def get_all_tautomers(self, *args, **kwargs):
