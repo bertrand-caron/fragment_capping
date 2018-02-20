@@ -603,9 +603,14 @@ class Molecule:
 
     def assert_molecule_coherence(self) -> None:
         bonded_atoms = reduce(lambda acc, e: acc | e, self.bonds, frozenset())
-        assert set(bonded_atoms) == set(self.atoms.keys()), set(bonded_atoms) ^ set(self.atoms.keys())
-        assert set(self.bonds) == set(self.bond_orders.keys()), set(self.bonds) ^ set(self.bond_orders.keys())
-        assert set(self.atoms.keys()) == set(self.formal_charges.keys()), set(self.atoms.keys()) ^ set(self.formal_charges.keys())
+        try:
+            if len(self.atoms) > 1:
+                assert set(bonded_atoms) == set(self.atoms.keys()), set(bonded_atoms) ^ set(self.atoms.keys())
+            assert set(self.bonds) == set(self.bond_orders.keys()), set(self.bonds) ^ set(self.bond_orders.keys())
+            assert set(self.atoms.keys()) == set(self.formal_charges.keys()), set(self.atoms.keys()) ^ set(self.formal_charges.keys())
+        except AssertionError:
+            stderr.write('\n' + str(self))
+            raise
 
     def netcharge(self) -> int:
         try:
