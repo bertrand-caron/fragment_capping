@@ -8,7 +8,7 @@ from pulp.solvers import GUROBI_CMD
 from fragment_capping.helpers.types_helpers import Atom, MIN, MAX
 from fragment_capping.helpers.parameters import MAX_ABSOLUTE_CHARGE, MIN_ABSOLUTE_CHARGE, MAX_NONBONDED_ELECTRONS, \
     MAX_BOND_ORDER, MIN_BOND_ORDER, VALENCE_ELECTRONS, ELECTRONS_PER_BOND, MUST_BE_INT, Capping_Strategy, NO_CAP, H_CAP, \
-    H2_CAP, H3_CAP, H4_CAP, ELECTRONEGATIVITIES, new_atom_for_capping_strategy, min_valence_for
+    ELECTRONEGATIVITIES, new_atom_for_capping_strategy, min_valence_for, merge_caps
 from fragment_capping.helpers.misc import write_to_debug, atom_short_desc
 from fragment_capping.helpers.graphs import unique_molecules
 from fragment_capping.helpers.rings import bonds_in_small_rings_for, SMALL_RING, atoms_in_small_rings_for
@@ -240,6 +240,7 @@ def get_all_tautomers(
     disallow_allenes_completely: bool = True,
     lock_phenyl_rings: bool = True,
     use_gurobi: bool = False,
+    maximum_number_hydrogens_per_atom: Optional[int] = 3,
     debug: Optional[TextIO] = None,
 ) -> 'Molecule':
     '''
@@ -248,6 +249,7 @@ def get_all_tautomers(
         ``disallow_allenes_in_small_rings``: Disallow allenes (=C=) in small rings (rings with size <= ``SMALL_RING``).
         ``lock_phenyl_rings``: Prevent phenyl rings (6 membered rings with all sp3 carbons) from being hydrogenised.
         ``disallow_allenes_completely``: Disallow allenes (=C=) completely.
+        ``maximum_number_hydrogens_per_atom``: Maximum number of hydrogen atoms carried by a single heavy atom. Single atom molecules will be allowed ``maximum_number_hydrogens_per_atom + 1`` hydrogens.
 
     Returns:
         A list of tautomers (Molecule).
@@ -266,11 +268,15 @@ def get_all_tautomers(
         else:
             return min_valence_for(atom) <= neighbour_counts[atom.index] + new_atom_for_capping_strategy(capping_strategy) <= max_valence_for(atom)
 
+    assert maximum_number_hydrogens_per_atom >= 0, 'Maximum number of hydrogens should be greater or equal than 0'
     def possible_capping_strategies_for_atom(atom: Atom, is_phenyl_atom: bool = False) -> List[Capping_Strategy]:
         if is_phenyl_atom and lock_phenyl_rings:
             return [NO_CAP, H_CAP]
         else:
-            return [NO_CAP, H_CAP, H2_CAP, H3_CAP] + ([H4_CAP] if False else [])
+            return (
+                [NO_CAP]
+                + [merge_caps(* [H_CAP] * i) for i in range(1, maximum_number_hydrogens_per_atom + 1 + (1 if len(molecule.atoms) == 1 else 0))]
+            )
 
     atoms_need_capping = [atom for atom in molecule.sorted_atoms() if not atom.capped]
 
@@ -422,7 +428,7 @@ def get_all_tautomers(
     ])
 
     if net_charge is not None:
-        problem += (lpSum(charges.values()) == molecule.net_charge, 'Known net charge={0}'.format(net_charge))
+        problem += (lpSum(charges.values()) == net_charge, 'Known net charge={0}'.format(net_charge))
 
     for atom in non_capping_atoms:
         problem += (

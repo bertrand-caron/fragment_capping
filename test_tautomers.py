@@ -206,6 +206,93 @@ class Test_Capping(unittest.TestCase):
                 graph_kwargs={'include_atom_index': True},
             )
 
+    def test_methane(self):
+        with open('pdbs/methane.pdb') as fh:
+            input_molecule = molecule_from_pdb_str(
+                fh.read(),
+                name='methane',
+            )
+        input_molecule.remove_all_hydrogens(mark_all_uncapped=True)
+        input_molecule.write_graph(
+            'input',
+            output_size=(600, 600),
+            graph_kwargs={'include_atom_index': False},
+        )
+        tautomers = input_molecule.get_all_tautomers(
+            net_charge=0,
+            total_number_hydrogens=4,
+            enforce_octet_rule=True,
+            allow_radicals=False,
+        )
+
+        assert len(tautomers) == 1, len(tautomers)
+
+        for (n, molecule) in enumerate(tautomers, start=1):
+            molecule.name = input_molecule.name
+            molecule.write_graph(
+                '_tautomer_{0}'.format(n),
+                output_size=(600, 600),
+                graph_kwargs={'include_atom_index': True},
+            )
+
+    def test_ammonium(self):
+        with open('pdbs/ammonium.pdb') as fh:
+            input_molecule = molecule_from_pdb_str(
+                fh.read(),
+                name='ammonium',
+            )
+        input_molecule.remove_all_hydrogens(mark_all_uncapped=True)
+        input_molecule.write_graph(
+            'input',
+            output_size=(600, 600),
+            graph_kwargs={'include_atom_index': False},
+        )
+        tautomers = input_molecule.get_all_tautomers(
+            net_charge=1,
+            total_number_hydrogens=4,
+            enforce_octet_rule=True,
+            allow_radicals=False,
+        )
+
+        assert len(tautomers) == 1, len(tautomers)
+
+        for (n, molecule) in enumerate(tautomers, start=1):
+            molecule.name = input_molecule.name
+            molecule.write_graph(
+                '_tautomer_{0}'.format(n),
+                output_size=(600, 600),
+                graph_kwargs={'include_atom_index': True},
+            )
+
+    def test_ammonium_fail(self):
+        with open('pdbs/ammonium.pdb') as fh:
+            input_molecule = molecule_from_pdb_str(
+                fh.read(),
+                name='ammonium',
+            )
+        input_molecule.remove_all_hydrogens(mark_all_uncapped=True)
+        input_molecule.write_graph(
+            'input',
+            output_size=(600, 600),
+            graph_kwargs={'include_atom_index': False},
+        )
+        with self.assertRaises(Exception):
+            tautomers = input_molecule.get_all_tautomers(
+                net_charge=1,
+                total_number_hydrogens=4,
+                maximum_number_hydrogens_per_atom=2,
+                enforce_octet_rule=True,
+                allow_radicals=False,
+            )
+        with self.assertRaises(Exception):
+            tautomers = input_molecule.get_all_tautomers(
+                net_charge=0,
+                total_number_hydrogens=4,
+                maximum_number_hydrogens_per_atom=3,
+                enforce_octet_rule=True,
+                allow_radicals=False,
+            )
+
 if __name__ == '__main__':
     print('Note: This test is very long (~15 minutes)')
     unittest.main(warnings='ignore', verbosity=2)
