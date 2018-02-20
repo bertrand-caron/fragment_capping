@@ -293,6 +293,86 @@ class Test_Capping(unittest.TestCase):
                 allow_radicals=False,
             )
 
+    def test_radicals(self):
+        with open('pdbs/nitric_oxide.pdb') as fh:
+            input_molecule = molecule_from_pdb_str(
+                fh.read(),
+                name='nitric_oxide',
+            )
+        input_molecule.remove_all_hydrogens(mark_all_uncapped=True)
+        input_molecule.write_graph(
+            'input',
+            output_size=(600, 600),
+            graph_kwargs={'include_atom_index': False},
+        )
+
+        with self.assertRaises(Exception):
+            tautomers = input_molecule.get_all_tautomers(
+                net_charge=0,
+                total_number_hydrogens=0,
+                enforce_octet_rule=True,
+                allow_radicals=False,
+            )
+
+        tautomers = input_molecule.get_all_tautomers(
+            net_charge=0,
+            total_number_hydrogens=0,
+            enforce_octet_rule=False,
+            allow_radicals=True,
+        )
+
+        assert len(tautomers) == 1, len(tautomers)
+
+        for (n, molecule) in enumerate(tautomers, start=1):
+            molecule.name = input_molecule.name
+            molecule.write_graph(
+                '_tautomer_{0}'.format(n),
+                output_size=(600, 600),
+                graph_kwargs={'include_atom_index': True},
+            )
+
+        tautomer = tautomers[0]
+
+        assert list(tautomer.bond_orders.items()) == [2]
+
+    def test_lewis_octet_exceptions(self):
+        with open('pdbs/methylene.pdb') as fh:
+            input_molecule = molecule_from_pdb_str(
+                fh.read(),
+                name='methylene',
+            )
+        input_molecule.remove_all_hydrogens(mark_all_uncapped=True)
+        input_molecule.write_graph(
+            'input',
+            output_size=(600, 600),
+            graph_kwargs={'include_atom_index': False},
+        )
+
+        with self.assertRaises(Exception):
+            tautomers = input_molecule.get_all_tautomers(
+                net_charge=0,
+                total_number_hydrogens=2,
+                enforce_octet_rule=True,
+                allow_radicals=False,
+            )
+
+        tautomers = input_molecule.get_all_tautomers(
+            net_charge=0,
+            total_number_hydrogens=2,
+            enforce_octet_rule=False,
+            allow_radicals=False,
+        )
+
+        assert len(tautomers) == 1, len(tautomers)
+
+        for (n, molecule) in enumerate(tautomers, start=1):
+            molecule.name = input_molecule.name
+            molecule.write_graph(
+                '_tautomer_{0}'.format(n),
+                output_size=(600, 600),
+                graph_kwargs={'include_atom_index': True},
+            )
+
 if __name__ == '__main__':
     print('Note: This test is very long (~15 minutes)')
     unittest.main(warnings='ignore', verbosity=2)
