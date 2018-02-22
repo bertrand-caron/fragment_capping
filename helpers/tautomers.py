@@ -1,4 +1,4 @@
-from typing import List, Optional, TextIO
+from typing import List, Optional, TextIO, Tuple
 from copy import deepcopy
 from operator import itemgetter
 from itertools import groupby, chain, count
@@ -241,6 +241,7 @@ def get_all_tautomers(
     lock_phenyl_rings: bool = True,
     use_gurobi: bool = False,
     maximum_number_hydrogens_per_atom: Optional[int] = 3,
+    skeletal_rearrangements: Optional[List[Tuple[int, int]]] = None,
     debug: Optional[TextIO] = None,
 ) -> 'Molecule':
     '''
@@ -250,10 +251,20 @@ def get_all_tautomers(
         ``lock_phenyl_rings``: Prevent phenyl rings (6 membered rings with all sp3 carbons) from being hydrogenised.
         ``disallow_allenes_completely``: Disallow allenes (=C=) completely.
         ``maximum_number_hydrogens_per_atom``: Maximum number of hydrogen atoms carried by a single heavy atom. Single atom molecules will be allowed ``maximum_number_hydrogens_per_atom + 1`` hydrogens.
+        ``skeletal_rearrangements``: Optional list of bonds (tuple of two atom indices) that can potentially be formed or destroyed during the tautomerisation process.
 
     Returns:
         A list of tautomers (Molecule).
     '''
+    print_if_debug = lambda *args: write_to_debug(debug, *args)
+
+    try:
+        optional_bonds = set() if skeletal_rearrangements is None else {frozenset([atom_1, atom_2]) for (atom_1, atom_2) in skeletal_rearrangements}
+    except:
+        raise TypeError('Invalid skeletal_rearrangements: {0}. Example: [(1, 2), (1, 3)]'.format(skeletal_rearrangements))
+
+    molecule.bonds |= optional_bonds
+
     if len([1 for atom in molecule.atoms.values() if atom.element == 'H']) > 0:
         molecule.remove_all_hydrogens(mark_all_uncapped=True)
 
@@ -263,7 +274,7 @@ def get_all_tautomers(
         if atom.valence is not None:
             if False:
                 if neighbour_counts[atom.index] + new_atom_for_capping_strategy(capping_strategy) == atom.valence:
-                    print(atom, capping_strategy)
+                    print_if_debug(atom, capping_strategy)
             return neighbour_counts[atom.index] + new_atom_for_capping_strategy(capping_strategy) == atom.valence
         else:
             return min_valence_for(atom) <= neighbour_counts[atom.index] + new_atom_for_capping_strategy(capping_strategy) <= max_valence_for(atom)
@@ -280,8 +291,7 @@ def get_all_tautomers(
 
     atoms_need_capping = [atom for atom in molecule.sorted_atoms() if not atom.capped]
 
-    write_to_debug(
-        debug,
+    print_if_debug(
         [
             possible_capping_strategies_for_atom(atom, is_phenyl_atom=(atom.index in molecule.phenyl_atoms))
             for atom in atoms_need_capping
@@ -308,7 +318,7 @@ def get_all_tautomers(
             pass
         else:
             for (i, capping_strategy) in enumerate(sorted(possible_capping_strategies), start=1):
-                write_to_debug(debug, uncapped_atom, capping_strategy, i)
+                print_if_debug(uncapped_atom, capping_strategy, i)
                 # Add switch variable
                 fragment_switches[uncapped_atom.index, i] = LpVariable(
                     'F_{i},{j}'.format(i=uncapped_atom.index, j=i),
@@ -318,7 +328,7 @@ def get_all_tautomers(
                 )
 
                 new_atoms, new_bonds = molecule.extend_molecule_with(uncapped_atom, capping_strategy)
-                write_to_debug(debug, i, [atom for atom in new_atoms])
+                print_if_debug(i, [atom for atom in new_atoms])
                 capping_atoms_for[uncapped_atom.index, i] = new_atoms
                 new_bonds_sets[uncapped_atom.index, i] = [bond for bond in new_bonds if uncapped_atom.index in bond]
                 fragment_scores[uncapped_atom.index, i] = len(capping_atoms_for[uncapped_atom.index, i])
@@ -392,7 +402,7 @@ def get_all_tautomers(
     bond_key = lambda bond: ','.join(map(str, sorted(bond)))
 
     if disallow_triple_bond_in_small_rings:
-        write_to_debug(debug, 'Note: Excluding triple bonds in small rings (<= {0})'.format(SMALL_RING))
+        print_if_debug('Note: Excluding triple bonds in small rings (<= {0})'.format(SMALL_RING))
         bonds_in_small_rings = bonds_in_small_rings_for(molecule)
     else:
         bonds_in_small_rings = set()
@@ -400,7 +410,7 @@ def get_all_tautomers(
     bond_orders = {
         bond: LpVariable(
             "B_{bond_key}".format(bond_key=bond_key(bond)),
-            MIN_BOND_ORDER,
+            MIN_BOND_ORDER if bond not in optional_bonds else 0,
             MAX_BOND_ORDER if bond not in bonds_in_small_rings else 2,
             LpInteger,
         )
@@ -495,8 +505,20 @@ def get_all_tautomers(
                     bond_index = int(variable_substr)
                     new_molecule.bond_orders[bond_reverse_mapping[bond_index]] = MUST_BE_INT(v.varValue)
                 else:
-                    bond = frozenset(map(int, variable_substr.split(',')))
-                    new_molecule.bond_orders[bond] = MUST_BE_INT(v.varValue)
+                    bond, bond_order = frozenset(map(int, variable_substr.split(','))), MUST_BE_INT(v.varValue)
+                    if bond in optional_bonds:
+                        if bond_order > 0:
+                            print_if_debug('new_bond', bond, bond_order, [new_molecule.atoms[atom_index] for atom_index in bond])
+                            new_molecule.bond_orders[bond] = bond_order
+                        else:
+                            print_if_debug('no_new_bond', bond, bond_order, [new_molecule.atoms[atom_index] for atom_index in bond])
+                            new_molecule.bonds.remove(bond)
+                    else:
+                        if bond_order == 0:
+                            print_if_debug('removing_bond', bond, bond_order, [new_molecule.atoms[atom_index] for atom_index in bond])
+                            new_molecule.bonds.remove(bond)
+                        else:
+                            new_molecule.bond_orders[bond] = bond_order
             elif variable_type == 'Z':
                 pass
             elif variable_type == 'A':
@@ -561,7 +583,7 @@ def get_all_tautomers(
             'Solution {n}'.format(n=n)
 
         s = encode_solution()
-        write_to_debug(debug, 'Excluding solution {0}'.format(s))
+        print_if_debug('Excluding solution {0}'.format(s))
         solutions.append(s)
 
         try:
@@ -575,7 +597,7 @@ def get_all_tautomers(
         if problem.status == 1:
             pass
         else:
-            write_to_debug(debug, problem.status, LpStatus[problem.status])
+            print_if_debug(problem.status, LpStatus[problem.status])
             if debug is not None:
                 debug_failed_ILP(n)
             break

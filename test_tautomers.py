@@ -373,6 +373,46 @@ class Test_Capping(unittest.TestCase):
                 graph_kwargs={'include_atom_index': True},
             )
 
+    def test_skeletal_rearrangement(self):
+        with open('pdbs/warfarin.pdb') as fh:
+            input_molecule = molecule_from_pdb_str(
+                fh.read(),
+                name='warfarin_extended',
+            )
+        input_molecule.remove_all_hydrogens(mark_all_uncapped=True)
+        input_molecule.write_graph(
+            'input',
+            output_size=(1200, 1200),
+            graph_kwargs={'include_atom_index': False},
+        )
+
+        with self.assertRaises(TypeError):
+            tautomers = input_molecule.get_all_tautomers(
+                net_charge=0,
+                total_number_hydrogens=16,
+                enforce_octet_rule=True,
+                allow_radicals=False,
+                skeletal_rearrangements=[(1, 2, 3 )],
+            )
+
+        tautomers = input_molecule.get_all_tautomers(
+            net_charge=0,
+            total_number_hydrogens=16,
+            enforce_octet_rule=True,
+            allow_radicals=False,
+            skeletal_rearrangements=[(2, 10), (2, 8)], # Bonds ('C13', 'O1') and ('C13', 'O3')
+        )
+
+        assert len(tautomers) == 53, len(tautomers)
+
+        for (n, molecule) in enumerate(tautomers, start=1):
+            molecule.name = input_molecule.name
+            molecule.write_graph(
+                '_tautomer_{0}'.format(n),
+                output_size=(1200, 1200),
+                graph_kwargs={'include_atom_index': False},
+            )
+
 if __name__ == '__main__':
     print('Note: This test is very long (~15 minutes)')
     unittest.main(warnings='ignore', verbosity=2)
