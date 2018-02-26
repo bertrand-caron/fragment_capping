@@ -48,12 +48,6 @@ class Molecule:
         self.name = name if name is not None else md5((str(sorted(self.atoms.values())) + str(sorted(bonds))).encode()).hexdigest()
         self.net_charge = net_charge
 
-        self.use_neighbour_valences = (
-            True
-            if all([atom.valence is not None for atom in self.atoms.values()])
-            else False
-        )
-
         if formal_charges is not None:
             assert all(isinstance(formal_charge, int) for (_, formal_charge) in formal_charges.items()), 'Non-integer formal charges: {0}'.format(
                 {atom: formal_charge for (atom, formal_charge) in formal_charges.items() if not isinstance(formal_charge, int)}
@@ -70,14 +64,17 @@ class Molecule:
         self.non_bonded_electrons = None
         self.phenyl_atoms = set()
 
+    def use_neighbour_valences(self) -> bool:
+        return all([atom.valence is not None for atom in self.atoms.values()])
+
     def atom_desc(self, atom: Atom):
-        if self.use_neighbour_valences:
+        if self.use_neighbour_valences():
             return atom.element + str(atom.valence)
         else:
             return atom.element
 
     def assert_use_neighbour_valences(self) -> None:
-        assert self.use_neighbour_valences, 'ERROR: self.use_neighbour_valences is set to False'
+        assert self.use_neighbour_valences(), 'ERROR: self.use_neighbour_valences() returned False'
 
     def valence(self, atom_id: ATOM_INDEX) -> int:
         self.assert_use_neighbour_valences()
@@ -178,7 +175,7 @@ class Molecule:
             self.atoms[new_id] = Atom(
                 index=new_id,
                 element=new_atom,
-                valence=new_valence if self.use_neighbour_valences else None,
+                valence=new_valence if self.use_neighbour_valences() else None,
                 capped=True,
                 coordinates=coordinates_n_angstroms_away_from(atom, 1.2),
             )
@@ -197,7 +194,7 @@ class Molecule:
             [atom for atom in capped_molecule.atoms.values() if not atom.capped],
         )
 
-        if capped_molecule.use_neighbour_valences:
+        if capped_molecule.use_neighbour_valences():
             capped_molecule.check_valence()
 
         try:
@@ -506,7 +503,7 @@ class Molecule:
                 charge_str = ((str(abs(charge)) if abs(charge) != 1 else '') + ('-' if charge < 0 else '+')) if charge != 0 else ''
             vertex_types[v] = '{element}{valence}{charge_str}{non_bonded_str}{index}'.format(
                 element=atom.element,
-                valence=atom.valence if self.use_neighbour_valences and include_atom_valence else '',
+                valence=atom.valence if self.use_neighbour_valences() and include_atom_valence else '',
                 charge_str=('' if charge_str else '') + charge_str,
                 non_bonded_str=(
                     ('*' * (self.non_bonded_electrons[atom_index] // 2) if self.non_bonded_electrons[atom_index] % 2 == 0 else '.' * self.non_bonded_electrons[atom_index])

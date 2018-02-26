@@ -285,7 +285,7 @@ def get_best_capped_molecule(
     neighbour_counts = molecule.neighbours_for_atoms()
 
     def keep_capping_strategy_for_atom(capping_strategy: Capping_Strategy, atom: Atom):
-        if molecule.use_neighbour_valences:
+        if molecule.use_neighbour_valences():
             return neighbour_counts[atom.index] + new_atom_for_capping_strategy(capping_strategy) == atom.valence
         else:
             return min_valence_for(atom) <= neighbour_counts[atom.index] + new_atom_for_capping_strategy(capping_strategy) <= max_valence_for(atom)
