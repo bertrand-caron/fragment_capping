@@ -493,6 +493,12 @@ class Molecule:
             (vertex_types, vertex_colors) = map(lambda type_str: g.vertex_properties[type_str], ['type', 'color'])
             (edge_types,) = map(lambda type_str: g.edge_properties[type_str], ['type'])
 
+        def non_bonded_str(atom_index: int) -> str:
+            if self.non_bonded_electrons is not None:
+                return '*' * (self.non_bonded_electrons[atom_index] // 2) + '.' * (self.non_bonded_electrons[atom_index] % 2)
+            else:
+                return ''
+
         for (atom_index, atom) in sorted(self.atoms.items()):
             v = _vertices[atom_index]
             if self.formal_charges is None:
@@ -505,11 +511,7 @@ class Molecule:
                 element=atom.element,
                 valence=atom.valence if self.use_neighbour_valences() and include_atom_valence else '',
                 charge_str=('' if charge_str else '') + charge_str,
-                non_bonded_str=(
-                    ('*' * (self.non_bonded_electrons[atom_index] // 2) if self.non_bonded_electrons[atom_index] % 2 == 0 else '.' * self.non_bonded_electrons[atom_index])
-                    if self.non_bonded_electrons is not None
-                    else ''
-                ),
+                non_bonded_str=non_bonded_str(atom_index),
                 index=' ({0})'.format(atom.index) if include_atom_index else '',
             )
             if atom.index in self.previously_uncapped:
