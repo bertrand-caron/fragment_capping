@@ -6,6 +6,7 @@ from fragment_capping.helpers.misc import write_to_debug
 
 def get_best_capped_molecule_with_ILP(
     molecule: 'Molecule',
+    net_charge: Optional[int] = None,
     enforce_octet_rule: bool = True,
     allow_radicals: bool = False,
     debug: Optional[TextIO] = None,
@@ -179,8 +180,8 @@ def get_best_capped_molecule_with_ILP(
         MIN(lpSum([bond_order * ELECTRONEGATIVITIES[molecule.atoms[atom_id].element] for (bond, bond_order) in bond_orders.items() for atom_id in bond])),
     ])
 
-    if molecule.net_charge is not None:
-        problem += (lpSum(charges.values()) == molecule.net_charge, 'Known net charge')
+    if net_charge is not None:
+        problem += (lpSum(charges.values()) == net_charge, 'Known net charge')
 
     for atom in molecule.atoms.values():
         problem += (

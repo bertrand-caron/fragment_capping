@@ -118,6 +118,39 @@ class Test_Capping(unittest.TestCase):
                 graph_kwargs={'include_atom_index': False},
             )
 
+    def test_benzene_fail(self):
+        with open('pdbs/benzene.pdb') as fh:
+            input_molecule = molecule_from_pdb_str(
+                fh.read(),
+                name='benzene_fail',
+            )
+        input_molecule.remove_all_hydrogens(mark_all_uncapped=True)
+        input_molecule.write_graph(
+            'input',
+            output_size=(600, 600),
+            graph_kwargs={'include_atom_index': True},
+        )
+        tautomers = input_molecule.get_all_tautomers(
+            net_charge=0,
+            total_number_hydrogens=6,
+            enforce_octet_rule=True,
+            allow_radicals=False,
+            disallow_triple_bond_in_small_rings=False,
+            disallow_allenes_in_small_rings=False,
+            disallow_allenes_completely=False,
+            lock_phenyl_rings=False,
+        )
+
+        assert len(tautomers) == 5, len(tautomers)
+
+        for (n, molecule) in enumerate(tautomers, start=1):
+            molecule.name = input_molecule.name
+            molecule.write_graph(
+                '_tautomer_{0}'.format(n),
+                output_size=(600, 600),
+                graph_kwargs={'include_atom_index': False},
+            )
+
     def test_ethanal(self):
         with open('pdbs/ethanal.pdb') as fh:
             input_molecule = molecule_from_pdb_str(

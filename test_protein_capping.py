@@ -1,6 +1,8 @@
 from itertools import groupby
 from functools import reduce
 from fragment_capping.helpers.molecule import Atom, Molecule
+from datetime import datetime
+from copy import deepcopy
 
 UNKNOWN_VALENCE = None
 
@@ -53,6 +55,10 @@ if __name__ == '__main__':
         name='2OVN',
     )
 
+    molecule_copy = deepcopy(uncapped_molecule)
+    molecule_copy.assign_bond_orders_and_charges_with_ILP()
+    old_formula, old_charge = molecule_copy.formula(charge=True), molecule_copy.netcharge()
+
     uncapped_molecule.remove_atoms_with_predicate(
         lambda atom: atom.index in {
             atom_index_for_line(line)
@@ -62,9 +68,16 @@ if __name__ == '__main__':
     )
 
     from sys import stdout
+    now = datetime.now()
     print(uncapped_molecule.write_graph('uncapped', graph_kwargs={'include_atom_index': False}))
-    uncapped_molecule.get_best_capped_molecule_with_ILP(
+    new_molecule = uncapped_molecule.get_best_capped_molecule_with_ILP(
         enforce_octet_rule=True,
+        net_charge=old_charge,
         #debug=stdout,
     )
+    print((datetime.now() - now).total_seconds())
     print(uncapped_molecule.write_graph('capped', graph_kwargs={'include_atom_index': False}))
+
+    new_formula = new_molecule.formula(charge=True)
+
+    assert old_formula == new_formula, (old_formula, new_formula)
