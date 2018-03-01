@@ -28,7 +28,7 @@ def unique_molecules(molecules: List['Molecule'], debug: bool = False) -> List['
 
     unique_molecules: List[Tuple['Molecules', Graph]] = []
 
-    print_if_debug = lambda *args, **kwargs: print(*args, **Kwargs) if debug else None
+    print_if_debug = lambda *args, **kwargs: print(*args, **kwargs) if debug else None
 
     for (molecule_1, graph_1) in zip(molecules, lewis_graphs):
         print_if_debug('Assessing {0} (unique_molecules={1})'.format(molecule_1.name, [m.name for (m, _) in unique_molecules]))

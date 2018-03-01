@@ -1,3 +1,4 @@
+from sys import stderr
 from typing import List, Optional, TextIO, Tuple
 from copy import deepcopy
 from operator import itemgetter
@@ -8,7 +9,7 @@ from pulp.solvers import GUROBI_CMD
 from fragment_capping.helpers.types_helpers import Atom, MIN, MAX
 from fragment_capping.helpers.parameters import MAX_ABSOLUTE_CHARGE, MIN_ABSOLUTE_CHARGE, MAX_NONBONDED_ELECTRONS, \
     MAX_BOND_ORDER, MIN_BOND_ORDER, VALENCE_ELECTRONS, ELECTRONS_PER_BOND, MUST_BE_INT, Capping_Strategy, NO_CAP, H_CAP, \
-    ELECTRONEGATIVITIES, new_atom_for_capping_strategy, min_valence_for, merge_caps
+    ELECTRONEGATIVITIES, new_atom_for_capping_strategy, min_valence_for, max_valence_for, merge_caps
 from fragment_capping.helpers.misc import write_to_debug, atom_short_desc
 from fragment_capping.helpers.graphs import unique_molecules
 from fragment_capping.helpers.rings import bonds_in_small_rings_for, SMALL_RING, atoms_in_small_rings_for
@@ -20,6 +21,7 @@ def get_all_tautomers_naive(
     enforce_octet_rule: bool = True,
     allow_radicals: bool = False,
     max_tautomers: Optional[int] = None,
+    debug: Optional[TextIO] = stderr,
 ) -> List['Molecule']:
     ELECTRON_MULTIPLIER = (2 if not allow_radicals else 1)
 
@@ -186,7 +188,7 @@ def get_all_tautomers_naive(
         problem.sequentialSolve(OBJECTIVES)
     except Exception as e:
         problem.writeLP('debug.lp')
-        new_molecule.write_graph('DEBUG', output_size=(2000, 2000))
+        molecule.write_graph('DEBUG', output_size=(2000, 2000))
         print('Failed LP written to "debug.lp"')
         raise
 

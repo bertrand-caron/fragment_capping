@@ -10,7 +10,7 @@ from sys import stderr
 from math import sqrt
 from warnings import warn
 
-from fragment_capping.helpers.types_helpers import Fragment, ATB_Molid, Atom, FRAGMENT_CAPPING_DIR, Bond, ATOM_INDEX, MIN, MAX
+from fragment_capping.helpers.types_helpers import Fragment, ATB_Molid, Atom, FRAGMENT_CAPPING_DIR, Bond, ATOM_INDEX, MIN, MAX, DESC
 from fragment_capping.helpers.parameters import FULL_VALENCES, POSSIBLE_CHARGES,  Capping_Strategy, possible_bond_order_for_atom_pair, coordinates_n_angstroms_away_from, possible_charge_for_atom, ALL_ELEMENTS, electronegativity_spread, ELECTRONEGATIVITIES, VALENCE_ELECTRONS, MIN_ABSOLUTE_CHARGE, MAX_ABSOLUTE_CHARGE, MIN_BOND_ORDER, MAX_BOND_ORDER, MUST_BE_INT, MAX_NONBONDED_ELECTRONS, NO_CAP, ELECTRONS_PER_BOND, ALL_CAPPING_OPTIONS
 from fragment_capping.helpers.babel import energy_minimised_pdb
 from fragment_capping.helpers.rings import bonds_for_ring, atom_indices_in_phenyl_rings_for
@@ -19,6 +19,7 @@ from fragment_capping.helpers.tautomers import get_all_tautomers, get_all_tautom
 from fragment_capping.helpers.capping import get_best_capped_molecule_with_ILP, get_best_capped_molecule
 from fragment_capping.helpers.misc import write_to_debug
 from fragment_capping.helpers.exceptions import No_Charges_And_Bond_Orders, Too_Many_Permutations, Not_Capped_Error
+from fragment_capping.helpers.iterables import product_len, MAXIMUM_PERMUTATION_NUMBER
 
 PropertyMap = Any
 
@@ -133,7 +134,7 @@ class Molecule:
             del self.bond_orders[bond]
 
     def remove_atom(self, atom: Atom) -> None:
-        return remove_atom_with_index(atom.index)
+        return self.remove_atom_with_index(atom.index)
 
     def remove_atoms(self, atoms: List[Atom]) -> None:
         [self.remove_atom_with_index(atom.index) for atom in atoms]

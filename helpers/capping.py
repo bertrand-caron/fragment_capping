@@ -3,6 +3,8 @@ from typing import Optional, TextIO, Dict, Any, List
 from fragment_capping.helpers.types_helpers import Atom, MIN, MAX
 from fragment_capping.helpers.parameters import MAX_ABSOLUTE_CHARGE, MIN_ABSOLUTE_CHARGE, MAX_NONBONDED_ELECTRONS, MAX_BOND_ORDER, MIN_BOND_ORDER, VALENCE_ELECTRONS, ELECTRONS_PER_BOND, MUST_BE_INT, ALL_CAPPING_OPTIONS, ELECTRONEGATIVITIES, Capping_Strategy, NO_CAP, new_atom_for_capping_strategy, max_valence_for, min_valence_for
 from fragment_capping.helpers.misc import write_to_debug
+from fragment_capping.helpers.exceptions import Too_Many_Permutations, Not_Capped_Error
+from fragment_capping.helpers.iterables import MAXIMUM_PERMUTATION_NUMBER
 
 def get_best_capped_molecule_with_ILP(
     molecule: 'Molecule',
@@ -266,14 +268,6 @@ def get_best_capped_molecule_with_ILP(
 
 from itertools import product
 from functools import reduce
-
-MAXIMUM_PERMUTATION_NUMBER = 600_000
-
-def product_len(list_of_lists: List[List[Any]]) -> int:
-    _product_len = reduce(lambda acc, e: acc * len(e), list_of_lists, 1)
-    if _product_len > MAXIMUM_PERMUTATION_NUMBER and False:
-        raise Too_Many_Permutations(_product_len)
-    return _product_len
 
 def get_best_capped_molecule(
     molecule: 'Molecule',

@@ -1,4 +1,4 @@
-PYTHON_BIN_DIR = /usr/local/python35/bin
+PYTHON_BIN_DIR = /opt/modules/Anaconda3/5.0.1/bin
 
 test_tautomers:
 	-@rm graphs/*tautomer*.pdf
