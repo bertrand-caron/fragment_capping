@@ -43,7 +43,11 @@ class Molecule:
         else:
             raise Exception('Invalide type(atoms): {0}'.format(type(atoms)))
 
-        self.atoms = validated_atoms_dict(atoms_dict)
+        try:
+            self.atoms = validated_atoms_dict(atoms_dict)
+        except AssertionError:
+            raise AssertionError('In: {0}'.format(atoms_dict))
+
         self.bonds = set(map(frozenset, bonds))
         validate_bond_dict(self.atoms, self.bonds)
         self.name = name if name is not None else md5((str(sorted(self.atoms.values())) + str(sorted(bonds))).encode()).hexdigest()
@@ -384,9 +388,22 @@ class Molecule:
             print(*args, file=io)
 
         def sibyl_atom_type(atom: Atom) -> str:
-            if atom.element in {'C', 'N', 'O', 'S', 'P'}:
+            if atom.element is None:
+                return 'Du'
+            elif atom.element == 'D':
+                return 'H'
+            elif atom.element == 'P':
+                return 'P.3'
+            elif atom.element.upper() in {'RU', 'CO'}:
+                return atom.element.title() + '.oh'
+            elif atom.element in {'C', 'O', 'N', 'S'}:
                 if atom.element == 'C':
-                    valence = atom.valence - 1
+                    if atom.valence >= 4:
+                        valence = 3
+                    elif atom.valence == 1:
+                        valence = 1
+                    else:
+                        valence = atom.valence - 1
                 elif atom.element == 'O':
                     valence = atom.valence + 1
                 elif atom.element == 'S':
@@ -400,12 +417,18 @@ class Molecule:
                         valence = 2
                 else:
                     valence = atom.valence
+                assert valence > 0, (atom, valence)
                 return '{element}.{valence}'.format(
-                    element=atom.element,
+                    element=atom.element.title(),
                     valence=valence,
                 )
+            elif atom.element.upper() in {'TI', 'CR'}:
+                if atom.valence <= 4:
+                    return atom.element.title() + '.th'
+                else:
+                    return atom.element.title() + '.oh'
             else:
-                return atom.element
+                return atom.element.title()
 
         print_to_io('@<TRIPOS>MOLECULE')
         print_to_io(self.name)
