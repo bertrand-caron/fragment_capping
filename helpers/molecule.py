@@ -417,7 +417,10 @@ class Molecule:
                         valence = 2
                 else:
                     valence = atom.valence
-                assert valence > 0, (atom, valence)
+
+                if isinstance(valence, int):
+                    assert valence > 0, (atom, valence)
+
                 return '{element}.{valence}'.format(
                     element=atom.element.title(),
                     valence=valence,
