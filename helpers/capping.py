@@ -1,5 +1,6 @@
 from typing import Optional, TextIO, Dict, Any, List
 
+from fragment_capping.config import ILP_SOLVER_TIMEOUT
 from fragment_capping.helpers.types_helpers import Atom, MIN, MAX
 from fragment_capping.helpers.parameters import MAX_ABSOLUTE_CHARGE, MIN_ABSOLUTE_CHARGE, MAX_NONBONDED_ELECTRONS, MAX_BOND_ORDER, MIN_BOND_ORDER, VALENCE_ELECTRONS, ELECTRONS_PER_BOND, MUST_BE_INT, ALL_CAPPING_OPTIONS, ELECTRONEGATIVITIES, Capping_Strategy, NO_CAP, new_atom_for_capping_strategy, max_valence_for, min_valence_for
 from fragment_capping.helpers.misc import write_to_debug
@@ -213,7 +214,7 @@ def get_best_capped_molecule_with_ILP(
                 )
 
     try:
-        problem.sequentialSolve(OBJECTIVES)
+        problem.sequentialSolve(OBJECTIVES, timeout=ILP_SOLVER_TIMEOUT)
         assert problem.status == 1, (molecule.name, LpStatus[problem.status])
         #assert False
     except Exception as e:

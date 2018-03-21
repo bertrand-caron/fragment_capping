@@ -10,6 +10,7 @@ from sys import stderr
 from math import sqrt
 from warnings import warn
 
+from fragment_capping.config import ILP_SOLVER_TIMEOUT
 from fragment_capping.helpers.types_helpers import Fragment, ATB_Molid, Atom, FRAGMENT_CAPPING_DIR, Bond, ATOM_INDEX, MIN, MAX, DESC
 from fragment_capping.helpers.parameters import FULL_VALENCES, POSSIBLE_CHARGES,  Capping_Strategy, possible_bond_order_for_atom_pair, coordinates_n_angstroms_away_from, possible_charge_for_atom, ALL_ELEMENTS, electronegativity_spread, ELECTRONEGATIVITIES, VALENCE_ELECTRONS, MIN_ABSOLUTE_CHARGE, MAX_ABSOLUTE_CHARGE, MIN_BOND_ORDER, MAX_BOND_ORDER, MUST_BE_INT, MAX_NONBONDED_ELECTRONS, NO_CAP, ELECTRONS_PER_BOND, ALL_CAPPING_OPTIONS
 from fragment_capping.helpers.babel import energy_minimised_pdb
@@ -849,7 +850,7 @@ class Molecule:
             problem += bond_orders[frozenset(bond)] == bond_order, 'Constraint bond {0} == {1}'.format(bond, bond_order)
 
         try:
-            problem.sequentialSolve(OBJECTIVES)
+            problem.sequentialSolve(OBJECTIVES, timeout=ILP_SOLVER_TIMEOUT)
             assert problem.status == 1, (self.name, LpStatus[problem.status])
         except (AssertionError, PulpSolverError) as e:
             args_id = ','.join(map(str, [enforce_octet_rule, allow_radicals, bond_order_constraints]))

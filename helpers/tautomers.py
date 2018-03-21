@@ -6,6 +6,7 @@ from itertools import groupby, chain, count
 from pulp import LpProblem, LpMinimize, LpInteger, LpVariable, LpBinary, LpStatus, lpSum
 from pulp.solvers import GUROBI_CMD
 
+from fragment_capping.config import ILP_SOLVER_TIMEOUT
 from fragment_capping.helpers.types_helpers import Atom, MIN, MAX
 from fragment_capping.helpers.parameters import MAX_ABSOLUTE_CHARGE, MIN_ABSOLUTE_CHARGE, MAX_NONBONDED_ELECTRONS, \
     MAX_BOND_ORDER, MIN_BOND_ORDER, VALENCE_ELECTRONS, ELECTRONS_PER_BOND, MUST_BE_INT, Capping_Strategy, NO_CAP, H_CAP, \
@@ -185,7 +186,7 @@ def get_all_tautomers_naive(
     # Solve once to find optimal solution
     try:
         write_to_debug(debug, 'Solving')
-        problem.sequentialSolve(OBJECTIVES)
+        problem.sequentialSolve(OBJECTIVES, timeout=ILP_SOLVER_TIMEOUT)
     except Exception as e:
         problem.writeLP('debug.lp')
         molecule.write_graph('DEBUG', output_size=(2000, 2000))
@@ -213,7 +214,7 @@ def get_all_tautomers_naive(
         solutions.append(s)
 
         try:
-            problem.solve()
+            problem.solve(timeout=ILP_SOLVER_TIMEOUT)
         except Exception as e:
             debug_failed_ILP()
             raise
@@ -560,7 +561,7 @@ def get_all_tautomers(
 
     # Solve once to find optimal solution with lowest encode_solution()
     try:
-        problem.sequentialSolve(OBJECTIVES)
+        problem.sequentialSolve(OBJECTIVES, timeout=ILP_SOLVER_TIMEOUT)
         assert problem.status == 1, (molecule.name, LpStatus[problem.status])
     except Exception as e:
         debug_failed_ILP(0)
@@ -591,6 +592,7 @@ def get_all_tautomers(
         try:
             problem.solve(
                 solver=GUROBI_CMD() if use_gurobi else None,
+                timeout=ILP_SOLVER_TIMEOUT,
             )
         except Exception as e:
             debug_failed_ILP(n)
