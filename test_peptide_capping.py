@@ -4,8 +4,10 @@ from datetime import datetime
 from copy import deepcopy
 import unittest
 from sys import stdout
+from os.path import basename
 
 from fragment_capping.helpers.molecule import Atom, Molecule, molecule_from_pdb_str
+from fragment_capping.helpers.compare import compare_capped_molecules
 
 UNKNOWN_VALENCE = None
 
@@ -18,229 +20,93 @@ def element_for_line(line: str) -> str:
 def atom_name_for_line(line: str) -> str:
     return line[13:16].replace(' ', '')
 
-class Test_Peptide_Capping(unittest.TestCase):
-    def test_capping_ARNDCEQGHILKMFPSTWYV(self):
-        input_pdb_filepath = 'pdbs/ARNDCEQGHILKMFPSTWYV.pdb'
-        with open(input_pdb_filepath) as fh:
-            input_molecule = molecule_from_pdb_str(
-                fh.read(),
-                name='ARNDCEQGHILKMFPSTWYV',
+def test_capping_peptide(peptide_pdb_filepath: str, peptide_net_charge: int) -> None:
+    peptide_name, _ = basename(peptide_pdb_filepath).split('.')
+
+    with open(peptide_pdb_filepath) as fh:
+        input_molecule = molecule_from_pdb_str(
+            fh.read(),
+            name=peptide_name,
+            net_charge=peptide_net_charge,
+        )
+
+    molecule_copy = deepcopy(input_molecule)
+    molecule_copy.assign_bond_orders_and_charges_with_ILP()
+    old_formula, old_charge = molecule_copy.formula(charge=True), molecule_copy.netcharge()
+
+    molecule_copy.write_graph(
+        'input',
+        graph_kwargs={
+            'include_atom_index': False,
+            'vertex_color_scheme': 'elements',
+            'vertex_label_template': '{charge_str}',
+        }
+    )
+
+    input_molecule.remove_atoms_with_predicate(
+        lambda atom: atom.element == 'H',
+        reset_valences=False,
+        renumber_atoms=False,
+    )
+    kept_atom_ids = [atom.index for atom in input_molecule.atoms.values()]
+
+    def enforce_valence_aromatic_rings() -> None:
+        molecule_copy.assign_aromatic_bonds()
+        aromatic_atom_ids = {
+            atom_id
+            for atom_id in reduce(
+                lambda acc, e: acc | set(e),
+                molecule_copy.aromatic_rings,
+                set(),
             )
+        }
 
-        input_molecule.write_graph(
-            'input',
-            graph_kwargs={
-                'include_atom_index': False,
-                'vertex_color_scheme': 'elements',
-                'vertex_label_template': '',
-            }
-        )
+        input_molecule.atoms = {
+            atom_id: atom if (not atom.capped and atom_id in aromatic_atom_ids) else atom._replace(valence=None)
+            for (atom_id, atom) in input_molecule.atoms.items()
+        }
 
-        old_formula, old_charge = 'C110H164N30O30S2', 0
+    enforce_valence_aromatic_rings()
 
-        input_molecule.remove_atoms_with_predicate(
-            lambda atom: atom.element == 'H',
-            reset_valences=False,
-        )
+    now = datetime.now()
+    new_molecule = input_molecule.get_best_capped_molecule_with_ILP(
+        enforce_octet_rule=True,
+        net_charge=old_charge,
+    )
+    print((datetime.now() - now).total_seconds())
+    new_formula = new_molecule.formula(charge=True)
 
-        now = datetime.now()
-        new_molecule = input_molecule.get_best_capped_molecule_with_ILP(
-            enforce_octet_rule=True,
-            net_charge=old_charge,
-            #debug=stdout,
-        )
-        print((datetime.now() - now).total_seconds())
-        new_formula = new_molecule.formula(charge=True)
-
-        print(
-            new_molecule.write_graph(
-                'capped',
-                graph_kwargs={
-                    'include_atom_index': False,
-                    'vertex_color_scheme': 'elements',
-                    'vertex_label_template': '',
-                }
-            ,)
-        )
-
-        with open(input_pdb_filepath.replace('.pdb', '_capped.pdb'), 'wt') as fh:
-            fh.write(new_molecule.dummy_pdb())
-
-        assert old_formula == new_formula, (old_formula, new_formula)
-
-    def test_capping_AAA(self):
-        with open('pdbs/AAA.pdb') as fh:
-            input_molecule = molecule_from_pdb_str(
-                fh.read(),
-                name='AAA',
-            )
-
-        input_molecule.write_graph(
-            'input',
-            graph_kwargs={
-                'include_atom_index': False,
-                'vertex_color_scheme': 'elements',
-                'vertex_label_template': '',
-            }
-        )
-
-        old_formula, old_charge = 'C9H17N3O4', 0
-
-        input_molecule.remove_atoms_with_predicate(
-            lambda atom: atom.element == 'H',
-        )
-
-        now = datetime.now()
-        new_molecule = input_molecule.get_best_capped_molecule_with_ILP(
-            enforce_octet_rule=True,
-            net_charge=old_charge,
-            #debug=stdout,
-        )
-        print((datetime.now() - now).total_seconds())
-        new_formula = new_molecule.formula(charge=True)
-
-        print(
-            new_molecule.write_graph(
-                'capped',
-                graph_kwargs={
-                    'include_atom_index': False,
-                    'vertex_color_scheme': 'elements',
-                    'vertex_label_template': '',
-                }
-            ,)
-        )
-
-        assert old_formula == new_formula, (old_formula, new_formula)
-
-    @unittest.skip
-    def test_capping_2OVN_all(self) -> None:
-        with open('pdbs/2OVN_with_connects.pdb') as fh:
-            input_molecule = molecule_from_pdb_str(
-                fh.read(),
-                name='2OVN_complete',
-            )
-
-        input_molecule.write_graph(
-            'input',
-            graph_kwargs={
-                'include_atom_index': False,
-                'vertex_color_scheme': 'elements',
-                'vertex_label_template': '',
-            }
-        )
-
-        old_formula, old_charge = 'C89H144N26O27 4-', -4
-
-        input_molecule.remove_atoms_with_predicate(
-            lambda atom: atom.element == 'H',
-        )
-
-        now = datetime.now()
-        new_molecule = input_molecule.get_best_capped_molecule_with_ILP(
-            enforce_octet_rule=True,
-            net_charge=old_charge,
-            #debug=stdout,
-        )
-        print((datetime.now() - now).total_seconds())
-        new_formula = new_molecule.formula(charge=True)
-
-        print(
-            new_molecule.write_graph(
-                'capped',
-                graph_kwargs={
-                    'include_atom_index': False,
-                    'vertex_color_scheme': 'elements',
-                    'vertex_label_template': '',
-                }
-            ,)
-        )
-
-        assert old_formula == new_formula, (old_formula, new_formula)
-
-    @unittest.skip
-    def test_capping_2OVN_backbone(self) -> None:
-        import faulthandler, signal
-        faulthandler.register(signal.SIGTERM)
-
-        model_1_atom_lines = []
-        model_1_connect_lines = []
-
-        BACKBONE_CARBONS = ['CA', 'N', 'CB']
-        BACKBONE_HYDROGENS = ['HA', 'H', 'HB2', 'HB3']
-
-        with open('pdbs/2OVN_with_connects.pdb') as fh:
-            for line in fh.read().splitlines():
-                if line.startswith('HETATM') or line.startswith('ATOM '):
-                    model_1_atom_lines.append(line)
-                if line.startswith('ENDMDL'):
-                    break
-                if line.startswith('CONECT'):
-                    model_1_connect_lines.append(line)
-
-        all_bonds = [
-            (int(bond_index_1), int(bond_index_2))
-            for (_, bond_index_1, *bond_indices) in map(lambda line: line.split(), model_1_connect_lines)
-            for bond_index_2 in bond_indices
-        ]
-
-        uncapped_molecule = Molecule(
-            [
-                Atom(
-                    index=atom_index_for_line(atom_line),
-                    element=element_for_line(atom_line),
-                    valence=None,
-                    capped=False if atom_name_for_line(atom_line) in BACKBONE_CARBONS else True,
-                    coordinates=None,
-                )
-                for atom_line in model_1_atom_lines
-            ],
-            all_bonds,
-            name='2OVN',
-        )
-
-        uncapped_molecule.write_graph(
-            'input',
-            graph_kwargs={
-                'include_atom_index': False,
-                'vertex_color_scheme': 'elements',
-                'vertex_label_template': '',
-            }
-        )
-
-        molecule_copy = deepcopy(uncapped_molecule)
-        molecule_copy.assign_bond_orders_and_charges_with_ILP()
-        old_formula, old_charge = molecule_copy.formula(charge=True), molecule_copy.netcharge()
-
-        uncapped_molecule.remove_atoms_with_predicate(
-            lambda atom: atom.index in {
-                atom_index_for_line(line)
-                for line in model_1_atom_lines
-                if atom_name_for_line(line) in BACKBONE_HYDROGENS
-            }
-        )
-
-        print(uncapped_molecule.write_graph('uncapped', graph_kwargs={'include_atom_index': False}))
-        now = datetime.now()
-        new_molecule = uncapped_molecule.get_best_capped_molecule_with_ILP(
-            enforce_octet_rule=True,
-            net_charge=old_charge,
-            #debug=stdout,
-        )
-        print((datetime.now() - now).total_seconds())
-
-        uncapped_molecule.write_graph(
+    print(
+        new_molecule.write_graph(
             'capped',
             graph_kwargs={
                 'include_atom_index': False,
                 'vertex_color_scheme': 'elements',
-                'vertex_label_template': '',
-            },
-            output_size=(1000, 2000),
-        )
+                'vertex_label_template': '{charge_str}',
+            }
+        ,)
+    )
 
-        new_formula = new_molecule.formula(charge=True)
+    with open(peptide_pdb_filepath.replace('.pdb', '_capped.pdb'), 'wt') as fh:
+        fh.write(new_molecule.dummy_pdb())
 
-        assert old_formula == new_formula, (old_formula, new_formula)
+    print(compare_capped_molecules(molecule_copy, new_molecule, kept_atom_ids))
+
+    assert old_formula == new_formula, (
+        old_formula,
+        new_formula,
+        compare_capped_molecules(molecule_copy, new_molecule, kept_atom_ids)
+    )
+
+class Test_Peptide_Capping(unittest.TestCase):
+    def test_capping_AAA(self):
+        test_capping_peptide('pdbs/AAA.pdb', 0)
+
+    def test_capping_ARNDCEQGHILKMFPSTWYV(self):
+        test_capping_peptide('pdbs/ARNDCEQGHILKMFPSTWYV.pdb', 0)
+
+    def test_capping_2OVN_all(self) -> None:
+        test_capping_peptide('pdbs/2OVN_with_connects.pdb', -4)
 
 if __name__ == '__main__':
     unittest.main(warnings='ignore', verbosity=2)

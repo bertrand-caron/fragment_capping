@@ -1040,7 +1040,13 @@ class Molecule:
 
         return None
 
-    def remove_atoms_with_predicate(self, predicate: Callable[[Atom], bool], reset_valences: bool = True, reset_capped: bool = True) -> None:
+    def remove_atoms_with_predicate(
+        self,
+        predicate: Callable[[Atom], bool],
+        reset_valences: bool = True,
+        reset_capped: bool = True,
+        renumber_atoms: bool = True,
+    ) -> None:
         deleted_atom_ids = {
             atom.index
             for atom in self.atoms.values()
@@ -1097,7 +1103,8 @@ class Molecule:
                 if atom_index not in deleted_atom_ids
             }
 
-        return self.renumber_atoms()
+        if renumber_atoms:
+            return self.renumber_atoms()
 
     def remove_all_hydrogens(self, mark_all_uncapped: bool = False) -> None:
         # Store phenyl rings atoms before removing their hydrogens
