@@ -31,7 +31,7 @@ class Test_Capping(unittest.TestCase):
             molecule.write_graph(
                 '_tautomer_{0}'.format(n),
                 output_size=(1200, 1200),
-                graph_kwargs={'include_atom_index': False},
+                graph_kwargs={'include_atom_index': False, 'vertex_color_scheme': 'elements', 'vertex_label_template': ''},
             )
 
     def test_porphyrin(self, use_ILP: bool = True) -> None:
@@ -443,7 +443,7 @@ class Test_Capping(unittest.TestCase):
             molecule.write_graph(
                 '_tautomer_{0}'.format(n),
                 output_size=(1200, 1200),
-                graph_kwargs={'include_atom_index': False},
+                graph_kwargs={'include_atom_index': False, 'vertex_color_scheme': 'elements', 'vertex_label_template': ''},
             )
 
 if __name__ == '__main__':

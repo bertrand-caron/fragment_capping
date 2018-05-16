@@ -331,6 +331,9 @@ class Molecule:
             **kwargs,
         )
 
+    def pdb(self, *args, **kwargs) -> str:
+        return self.dummy_pdb(*args, **kwargs)
+
     def dummy_pdb(self) -> str:
         from chemistry_helpers.pdb import PDB_TEMPLATE, pdb_conect_line
         io = StringIO()
@@ -489,11 +492,30 @@ class Molecule:
     def inchi(self) -> str:
         return self.representation('inchi')
 
-    def graph(self, g: Optional[Any] = None, include_atom_index: bool = True, include_atom_valence: bool = False) -> Any:
+    def graph(
+        self,
+        g: Optional[Any] = None,
+        include_atom_index: bool = True,
+        include_atom_valence: bool = False,
+        vertex_color_scheme: str = 'capping',
+        vertex_label_template: str = '{element}{valence}{charge_str}{non_bonded_str}{index}',
+    ) -> Any:
         try:
             from graph_tool.all import Graph
         except:
             return None
+
+        COLOR_FOR_ELEMENT = {
+            'C': '#5C5C5C',
+            'H': '#B3B3B3',
+            'O': '#EDC4C5',
+            'N': '#9DA7C1',
+            'S': 'yellow',
+            'P': 'orange',
+            'CL': 'green',
+            'I': 'yellow',
+            '*': 'white',
+        }
 
         if g is None:
             g = Graph(directed=False)
@@ -535,19 +557,24 @@ class Molecule:
             else:
                 charge = self.formal_charges[atom_index]
                 charge_str = ((str(abs(charge)) if abs(charge) != 1 else '') + ('-' if charge < 0 else '+')) if charge != 0 else ''
-            vertex_types[v] = '{element}{valence}{charge_str}{non_bonded_str}{index}'.format(
+            vertex_types[v] = vertex_label_template.format(
                 element=atom.element,
                 valence=atom.valence if self.use_neighbour_valences() and include_atom_valence else '',
                 charge_str=('' if charge_str else '') + charge_str,
                 non_bonded_str=non_bonded_str(atom_index),
                 index=' ({0})'.format(atom.index) if include_atom_index else '',
             )
-            if atom.index in self.previously_uncapped:
-                vertex_colors[v] = '#90EE90' # Green
-            elif atom.capped:
-                vertex_colors[v] = '#EEEEEE' # Grey
+            if vertex_color_scheme == 'capping':
+                if atom.index in self.previously_uncapped:
+                    vertex_colors[v] = '#90EE90' # Green
+                elif atom.capped:
+                    vertex_colors[v] = '#EEEEEE' # Grey
+                else:
+                    vertex_colors[v] = '#FF91A4' # Red
+            elif vertex_color_scheme == 'elements':
+                vertex_colors[v] = COLOR_FOR_ELEMENT[atom.element] if atom.element in COLOR_FOR_ELEMENT else COLOR_FOR_ELEMENT['*']
             else:
-                vertex_colors[v] = '#FF91A4' # Red
+                raise Exception('Unknown vertex_color_scheme: {0}'.format(vertex_color_scheme))
 
         for bond in self.bonds:
             e = _edges[bond]

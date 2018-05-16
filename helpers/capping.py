@@ -1,4 +1,5 @@
 from typing import Optional, TextIO, Dict, Any, List
+from sys import stdout
 
 from fragment_capping.config import ILP_SOLVER_TIMEOUT
 from fragment_capping.helpers.types_helpers import Atom, MIN, MAX
@@ -14,6 +15,19 @@ def get_best_capped_molecule_with_ILP(
     allow_radicals: bool = False,
     debug: Optional[TextIO] = None,
 ) -> 'Molecule':
+    '''
+    Use an ILP to cap (complete the valence) of an uncapped molecule using a library a capping fragments.
+
+    Args:
+        ``molecule``: Molecule to be capped. Some of its atoms should have the ``capped`` attribute set to False.
+        ``net_charge``: (Optional) Constraint the total net charge for the capped molecule.
+        ``enforce_octet_rule``: (Optional) Constraint organic elements (H, C, N, O) to satisfy the octet rule.
+        ``allow_radicals``: (Optional) Allow unpaired non-bonded electrons.
+        ``debug``: (Optional) Print very detailed debugging information
+
+    Returns:
+        The modified, capped ``molecule``.
+    '''
     neighbour_counts = molecule.neighbours_for_atoms()
 
     def keep_capping_strategy_for_atom(capping_strategy: Capping_Strategy, atom: Atom) -> bool:
@@ -44,6 +58,8 @@ def get_best_capped_molecule_with_ILP(
         ]
 
     atoms_need_capping = [atom for atom in molecule.sorted_atoms() if not atom.capped]
+
+    assert len(atoms_need_capping) > 0, 'Error: There are no uncapped atoms in the molecule.'
 
     if False:
         capping_schemes = list(
@@ -86,7 +102,7 @@ def get_best_capped_molecule_with_ILP(
         possible_capping_strategies = possible_capping_strategies_for_atom(uncapped_atom)
         if len(possible_capping_strategies) == 0 or len(possible_capping_strategies) == 1 and possible_capping_strategies[0] == NO_CAP:
             pass
-            print('PASS')
+            stdout.write('\nWarning: No capping strategy for atom: {0}. The ILP will be infeasible if a suitable cap is not available.'.format(uncapped_atom))
         else:
             for (i, capping_strategy) in enumerate(sorted(possible_capping_strategies), start=1):
                 write_to_debug(debug, uncapped_atom, capping_strategy, i)
@@ -277,6 +293,21 @@ def get_best_capped_molecule(
     use_ILP: bool = True,
     **kwargs: Dict[str, Any],
 ) -> 'Molecule':
+    '''
+    Use a brute-force combinatorial enumeration to cap (complete the valence) an uncapped molecule using a library a capping fragments.
+    Only meant to be used on very small molecules to compare against the ILP version (``get_best_capped_molecule_with_ILP``).
+
+    Args:
+        ``molecule``: Molecule to be capped. Some of its atoms should have the ``capped`` attribute set to False.
+        ``draw_all_possible_graphs``: (Optional) Draw all possible graphs for debug purposes.
+        ``debug``: (Optional) Print very detailed debugging information
+        ``use_ILP``: (Optional) Use an ILP for solving the electron assignment problem.
+            If set to ``False``, will use a combinatorial enumeration (very slow and error-prone!).
+        ``**kwargs``: (Optional) Additional keyword arguments, which are ignored.
+
+    Returns:
+        The modified, capped ``molecule``.
+    '''
     neighbour_counts = molecule.neighbours_for_atoms()
 
     def keep_capping_strategy_for_atom(capping_strategy: Capping_Strategy, atom: Atom):
