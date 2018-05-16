@@ -937,15 +937,30 @@ class Molecule:
             for ring in rings
         }
 
-        bond_orders_for_rings = {
-            ring: [self.bond_orders[bond] for bond in bonds]
-            for (ring, bonds) in bonds_for_rings.items()
-        }
+        try:
+            bond_orders_for_rings = {
+                ring: [self.bond_orders[bond] for bond in bonds]
+                for (ring, bonds) in bonds_for_rings.items()
+            }
+        except KeyError:
+            raise Exception('Please assign bond orders first.')
 
-        def is_hucklel_compatible(bond_orders: List[int]):
+        neighbour_counts = self.neighbours_for_atoms()
+
+        def is_sp2(atom_id: int) -> bool:
+            return neighbour_counts[atom_id] == 3
+
+        def is_hucklel_compatible(bond_orders: List[int]) -> bool:
+            '''
+            Implement the Huckel rule of aromaticity: 4n +2.
+            Source: https://en.wikipedia.org/wiki/Hückel%27s_rule
+            '''
             return (sum([2 for bond_order in bond_orders if bond_order == 2]) - 2) % 4 == 0
 
         def is_bond_sequence_aromatic(bond_orders: List[int]) -> bool:
+            '''
+            For even-membered ring, ensure alternance of single and double bonds.
+            '''
             cyclic_bond_orders = [bond_orders[-1]] + list(bond_orders) + [bond_orders[0]]
             for pair_of_bond_orders in zip(cyclic_bond_orders, [cyclic_bond_orders[-1]] + cyclic_bond_orders[:-1]):
                 if set(pair_of_bond_orders) == {1, 2}:
@@ -953,11 +968,24 @@ class Molecule:
                 else:
                     return False
             else:
-                return is_hucklel_compatible(bond_orders)
+                return True
+
+        def is_aromatic_ring(ring: List[int]) -> bool:
+            if len(ring) % 2 == 0:
+                # For even-membered rings, ensure alternance of single and double bonds, and ensure Huckel's rule is enforced.
+                return is_bond_sequence_aromatic(bond_orders_for_rings[ring]) and is_hucklel_compatible(bond_orders_for_rings[ring])
+            else:
+                # For odd-membered rings, include sp2 (pi electrons) lone pairs, and ensure Huckel's rule is enforced.
+                non_bonded_pairs = reduce(
+                    lambda acc, e: acc + e,
+                    [[2 for _ in range(0, self.non_bonded_electrons[atom_id] // 2)] for atom_id in ring if is_sp2(atom_id)],
+                    [],
+                )
+                return is_hucklel_compatible(bond_orders_for_rings[ring] + non_bonded_pairs)
 
         self.aromatic_rings, self.aromatic_bonds = set(), set()
         for ring in rings:
-            if is_bond_sequence_aromatic(bond_orders_for_rings[ring]):
+            if is_aromatic_ring(ring):
                 self.aromatic_rings.add(ring)
                 for bond in bonds_for_rings[ring]:
                     self.aromatic_bonds.add(bond)
