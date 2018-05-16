@@ -801,6 +801,8 @@ class Molecule:
 
     def assign_bond_orders_and_charges_with_ILP(
         self,
+        net_charge: Optional[int] = None,
+        total_electrons: Optional[int] = None,
         enforce_octet_rule: bool = True,
         allow_radicals: bool = False,
         debug: Optional[TextIO] = None,
@@ -855,8 +857,13 @@ class Molecule:
             else []
         )
 
-        if self.net_charge is not None:
-            problem += sum(charges.values()) == self.net_charge, 'Total net charge'
+        net_charge = net_charge if net_charge is not None else self.net_charge if self.net_charge is not None else None
+
+        if net_charge is not None:
+            problem += sum(charges.values()) == net_charge, 'Total net charge'
+
+        if total_electrons is not None:
+            problem += (ELECTRONS_PER_BOND * sum(bond_orders.values()) + ELECTRON_MULTIPLIER * sum(non_bonded_electrons.values()) == total_electrons, 'Known total electrons')
 
         for atom in self.atoms.values():
             problem += charges[atom.index] == VALENCE_ELECTRONS[atom.element] - sum([bond_orders[bond] for bond in self.bonds if atom.index in bond]) - ELECTRON_MULTIPLIER * non_bonded_electrons[atom.index], '{element}_{index}'.format(element=atom.element, index=atom.index)
