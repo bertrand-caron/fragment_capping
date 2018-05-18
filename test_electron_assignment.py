@@ -39,6 +39,28 @@ class Test_Capping(unittest.TestCase):
             graph_kwargs={'include_atom_index': True},
         )
 
+    def test_guanidinium(self) -> None:
+        with open('pdbs/guanidinium.pdb') as fh:
+            input_molecule = molecule_from_pdb_str(
+                fh.read(),
+                name='guanidinium_fail',
+            )
+
+        input_molecule.assign_bond_orders_and_charges_with_ILP(
+            enforce_octet_rule=True,
+            debug=stderr,
+        )
+
+        input_molecule.write_graph(
+            '',
+            output_size=(400, 400),
+            graph_kwargs={
+                'include_atom_index': False,
+                'vertex_color_scheme': 'elements',
+                'vertex_label_template': '{charge_str}',
+            },
+        )
+
     def test_guanidinium_with_charge(self) -> None:
         with open('pdbs/guanidinium.pdb') as fh:
             input_molecule = molecule_from_pdb_str(
@@ -49,12 +71,17 @@ class Test_Capping(unittest.TestCase):
         input_molecule.assign_bond_orders_and_charges_with_ILP(
             net_charge=+1,
             enforce_octet_rule=True,
+            debug=stderr,
         )
 
         input_molecule.write_graph(
             '',
             output_size=(400, 400),
-            graph_kwargs={'include_atom_index': True},
+            graph_kwargs={
+                'include_atom_index': False,
+                'vertex_color_scheme': 'elements',
+                'vertex_label_template': '{charge_str}',
+            },
         )
 
     def test_guanidinium_with_total_electrons(self) -> None:
@@ -67,12 +94,17 @@ class Test_Capping(unittest.TestCase):
         input_molecule.assign_bond_orders_and_charges_with_ILP(
             total_electrons=24,
             enforce_octet_rule=True,
+            debug=stderr,
         )
 
         input_molecule.write_graph(
             '',
             output_size=(400, 400),
-            graph_kwargs={'include_atom_index': True},
+            graph_kwargs={
+                'include_atom_index': False,
+                'vertex_color_scheme': 'elements',
+                'vertex_label_template': '{charge_str}',
+            },
         )
 
 if __name__ == '__main__':

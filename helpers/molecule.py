@@ -808,7 +808,7 @@ class Molecule:
         debug: Optional[TextIO] = None,
         bond_order_constraints: List[Tuple[Bond, int]] = [],
     ) -> None:
-        from pulp import LpProblem, LpMinimize, LpInteger, LpVariable, LpBinary, LpStatus
+        from pulp import LpProblem, LpMinimize, LpInteger, LpVariable, LpBinary, LpStatus, value
         from pulp.solvers import PulpSolverError
 
         assert not (allow_radicals and enforce_octet_rule), "Can't simultaneously allow_radicals and enforce octet rule."
@@ -895,6 +895,8 @@ class Molecule:
             raise
 
         self.formal_charges, self.bond_orders, self.non_bonded_electrons = {}, {}, {}
+
+        write_to_debug(debug, 'Objective function values: {0}'.format([value(objective) for objective in OBJECTIVES]))
 
         for v in problem.variables():
             variable_type, variable_substr = v.name.split('_')
