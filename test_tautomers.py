@@ -5,6 +5,35 @@ from fragment_capping.helpers.types_helpers import Atom
 from fragment_capping.helpers.molecule import Molecule, molecule_from_pdb_str
 
 class Test_Capping(unittest.TestCase):
+    def test_violuric_acid(self, use_ILP: bool = True) -> None:
+        with open('pdbs/violuric_acid.pdb') as fh:
+            input_molecule = molecule_from_pdb_str(
+                fh.read(),
+                name='violuric_acid',
+            )
+        input_molecule.remove_all_hydrogens(mark_all_uncapped=True)
+        input_molecule.write_graph(
+            'input',
+            output_size=(1200, 1200),
+            graph_kwargs={'include_atom_index': False},
+        )
+        tautomers = input_molecule.get_all_tautomers(
+            #net_charge=0,
+            total_number_hydrogens=3,
+            enforce_octet_rule=True,
+            allow_radicals=False,
+        )
+
+        for (n, molecule) in enumerate(tautomers, start=1):
+            molecule.name = input_molecule.name
+            molecule.write_graph(
+                '_tautomer_{0}'.format(n),
+                output_size=(1200, 1200),
+                graph_kwargs={'include_atom_index': False, 'vertex_color_scheme': 'elements', 'vertex_label_template': ''},
+            )
+
+        assert len(tautomers) == 15, len(tautomers)
+
     def test_warfarin(self, use_ILP: bool = True) -> None:
         with open('pdbs/warfarin.pdb') as fh:
             input_molecule = molecule_from_pdb_str(
