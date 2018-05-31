@@ -152,7 +152,7 @@ class Test_Dihedral_Fragment_Capping(unittest.TestCase):
     pass
 
 for (molecule, (expected_netcharge, expected_abs_netcharge, expected_formula, use_octet_rule, can_fail)) in sorted(ALL_EXAMPLES.items()):
-    def dynamic_test(self):
+    def dynamic_test(self, molecule=molecule, expected_netcharge=expected_netcharge, expected_abs_netcharge=expected_abs_netcharge, expected_formula=expected_formula, use_octet_rule=use_octet_rule, can_fail=can_fail):
         molecule.write_graph('uncapped')
         print(molecule.name + '...', end='')
         molecule.get_best_capped_molecule_with_ILP(enforce_octet_rule=use_octet_rule)

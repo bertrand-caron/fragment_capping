@@ -129,15 +129,15 @@ OH_CAP = Capping_Strategy(['O', 'H'], [(0, 1), (1, 2)], [2, 1])
 O_OH_OH_CAP = merge_caps(O_CAP, OH_CAP, OH_CAP)
 
 INDIVIDUAL_CAPPING_OPTIONS = {
-    'H1': [NO_CAP],
+    'H1': [NO_CAP, H_CAP],
     'O1': [NO_CAP],
-    'O2': [H_CAP],
-    'S1': [NO_CAP],
-    'S2': [H_CAP],
+    'O2': [H_CAP, H2_CAP],
+    'S1': [NO_CAP, H_CAP],
+    'S2': [H_CAP, H2_CAP],
     'S4': [NO_CAP],
     'S6': [NO_CAP],
-    'SE1': [NO_CAP],
-    'SE2': [H_CAP],
+    'SE1': [NO_CAP, H_CAP],
+    'SE2': [H_CAP, H2_CAP],
     'SE4': [NO_CAP],
     'SE6': [NO_CAP],
     'C4': [NO_CAP, H_CAP, H2_CAP, H3_CAP, H4_CAP],
@@ -146,14 +146,14 @@ INDIVIDUAL_CAPPING_OPTIONS = {
     'N1': [NO_CAP],
     'N2': [H_CAP], #CH3_CAP],
     'N3': [H_CAP, H2_CAP],
-    'N4': [H3_CAP],
-    'P5': [O_OH_OH_CAP],
-    'CL1': [NO_CAP],
-    'BR1': [NO_CAP],
-    'F1': [NO_CAP],
-    'I1': [NO_CAP],
-    'B3': [H2_CAP, H_CAP],
-    'SI4': [H_CAP, H2_CAP, H3_CAP],
+    'N4': [H3_CAP, H4_CAP],
+    'P5': [H_CAP, H2_CAP, O_OH_OH_CAP],
+    'CL1': [NO_CAP, H_CAP],
+    'BR1': [NO_CAP, H_CAP],
+    'F1': [NO_CAP, H_CAP],
+    'I1': [NO_CAP, H_CAP],
+    'B3': [H_CAP, H2_CAP, H3_CAP],
+    'SI4': [H_CAP, H2_CAP, H3_CAP, H4_CAP],
     'SI3': [H_CAP, H2_CAP, H_CH2_CAP],
     'SI2': [H_CAP],
 }
@@ -239,6 +239,23 @@ GROUPED_CAPPING_OPTIONS = {
         key=on_letters_of_dict_key,
     )
 }
+
+def validate_capping_strategies() -> None:
+    '''Ensures there exist a capping strategy for any valence of any atom.'''
+    for (element, capping_strategies) in GROUPED_CAPPING_OPTIONS.items():
+        capping_atom_valences = reduce(lambda acc, e: acc | {new_atom_for_capping_strategy(e)}, capping_strategies, set())
+        try:
+            assert capping_atom_valences >= set(range(1, min(FULL_VALENCES[element]) + 1)), (
+                element,
+                capping_atom_valences,
+                set(range(1, min(FULL_VALENCES[element]) + 1)),
+            )
+        except AssertionError:
+            from traceback import print_exc
+            print_exc()
+            print()
+
+validate_capping_strategies()
 
 ALL_CAPPING_OPTIONS = {
         **INDIVIDUAL_CAPPING_OPTIONS,
