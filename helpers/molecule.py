@@ -385,7 +385,7 @@ class Molecule:
 
         return io.getvalue()
 
-    def mol2(self) -> str:
+    def mol2(self, use_ar_bonds: bool = True) -> str:
         from chemistry_helpers.pdb import PDB_TEMPLATE, pdb_conect_line
         io = StringIO()
 
@@ -470,7 +470,7 @@ class Molecule:
                 '{0} {1} {2} {3}'.format(
                     bond_id,
                     *list(bond),
-                    self.bond_orders[bond] if bond not in self.aromatic_bonds else 'ar',
+                    'ar' if use_ar_bonds and (bond in self.aromatic_bonds) else self.bond_orders[bond],
                 ),
             )
 
