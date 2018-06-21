@@ -475,7 +475,7 @@ def get_all_tautomers(
 
     for atom in atoms_in_small_rings_for(molecule):
         if disallow_allenes_in_small_rings:
-            if atom.element in ['C', 'N']:
+            if atom.element in {'C', 'N'}:
                 adjacent_non_hydrogen_bonds = [bond for bond in non_capping_bonds if atom.index in bond]
                 if len(adjacent_non_hydrogen_bonds) == 2:
                     problem += sum(bond_orders[bond] for bond in adjacent_non_hydrogen_bonds) <= 3, 'No allenes for atom {atom_desc} in short ring'.format(atom_desc=atom_short_desc(atom))

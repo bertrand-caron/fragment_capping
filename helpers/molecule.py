@@ -18,9 +18,10 @@ from fragment_capping.helpers.rings import bonds_for_ring, atom_indices_in_pheny
 from fragment_capping.helpers.graphs import unique_molecules
 from fragment_capping.helpers.tautomers import get_all_tautomers, get_all_tautomers_naive
 from fragment_capping.helpers.capping import get_best_capped_molecule_with_ILP, get_best_capped_molecule
-from fragment_capping.helpers.misc import write_to_debug
+from fragment_capping.helpers.misc import write_to_debug, atom_short_desc
 from fragment_capping.helpers.exceptions import No_Charges_And_Bond_Orders, Too_Many_Permutations, Not_Capped_Error
 from fragment_capping.helpers.iterables import product_len, MAXIMUM_PERMUTATION_NUMBER
+from fragment_capping.helpers.rings import bonds_in_small_rings_for, SMALL_RING, atoms_in_small_rings_for
 
 PropertyMap = Any
 
@@ -807,15 +808,33 @@ class Molecule:
         allow_radicals: bool = False,
         debug: Optional[TextIO] = None,
         bond_order_constraints: List[Tuple[Bond, int]] = [],
+        disallow_triple_bond_in_small_rings: bool = True,
+        disallow_allenes_in_small_rings: bool = True,
+        disallow_allenes_completely: bool = False,
     ) -> None:
+        '''
+        Args:
+            ``disallow_triple_bond_in_small_rings``: Disallow triple bonds in small rings (rings with size <= ``SMALL_RING``).
+            ``disallow_allenes_in_small_rings``: Disallow allenes (=C=) in small rings (rings with size <= ``SMALL_RING``).
+            ``disallow_allenes_completely``: Disallow allenes (=C=) completely.
+        '''
         from pulp import LpProblem, LpMinimize, LpInteger, LpVariable, LpBinary, LpStatus, value
         from pulp.solvers import PulpSolverError
+
+        print_if_debug = lambda *args: write_to_debug(debug, *args)
 
         assert not (allow_radicals and enforce_octet_rule), "Can't simultaneously allow_radicals and enforce octet rule."
 
         problem = LpProblem("Lewis problem (bond order and charge assignment) for molecule {0}".format(self.name), LpMinimize)
 
         ELECTRON_MULTIPLIER = (2 if not allow_radicals else 1)
+
+        non_allene_atoms = {}
+        for atom in self.atoms.values():
+            if disallow_allenes_completely:
+                atom_bonds = [bond for bond in self.bonds if atom.index in bond]
+                if atom.element == 'C' and len(atom_bonds) == 2:
+                    non_allene_atoms[atom] = atom_bonds
 
         charges = {
             atom.index: LpVariable("C_{i}".format(i=atom.index), -MAX_ABSOLUTE_CHARGE, MAX_ABSOLUTE_CHARGE, LpInteger)
@@ -842,8 +861,19 @@ class Molecule:
         # Maps an integer to a bond
         bond_reverse_mapping = {v: k for (k, v) in bond_mapping.items()}
 
+        if disallow_triple_bond_in_small_rings:
+            print_if_debug('Note: Excluding triple bonds in small rings (<= {0})'.format(SMALL_RING))
+            bonds_in_small_rings = bonds_in_small_rings_for(self)
+        else:
+            bonds_in_small_rings = set()
+
         bond_orders = {
-            bond: LpVariable("B_{i}".format(i=bond_mapping[bond]), MIN_BOND_ORDER, MAX_BOND_ORDER, LpInteger)
+            bond: LpVariable(
+                "B_{i}".format(i=bond_mapping[bond]),
+                MIN_BOND_ORDER,
+                MAX_BOND_ORDER if bond not in bonds_in_small_rings else 2,
+                LpInteger,
+            )
             for bond in self.bonds
         }
 
@@ -882,6 +912,18 @@ class Molecule:
 
         for (bond, bond_order) in bond_order_constraints:
             problem += bond_orders[frozenset(bond)] == bond_order, 'Constraint bond {0} == {1}'.format(bond, bond_order)
+
+        for (atom, (bond_1, bond_2)) in non_allene_atoms.items():
+            new_allene_switch = LpVariable('A_{i}'.format(i=atom.index), 0, 1, LpBinary)
+            problem += 2 * bond_orders[bond_1] - bond_orders[bond_2] + 4 * new_allene_switch >= 3
+            problem += 2 * bond_orders[bond_1] - bond_orders[bond_2] + 4 * new_allene_switch <= 5
+
+        for atom in atoms_in_small_rings_for(self):
+            if disallow_allenes_in_small_rings:
+                if atom.element in {'C', 'N'}:
+                    adjacent_non_hydrogen_bonds = [bond for bond in self.bonds if atom.index in bond]
+                    if len(adjacent_non_hydrogen_bonds) == 2:
+                        problem += sum(bond_orders[bond] for bond in adjacent_non_hydrogen_bonds) <= 3, 'No allenes for atom {atom_desc} in short ring'.format(atom_desc=atom_short_desc(atom))
 
         try:
             problem.sequentialSolve(OBJECTIVES, timeout=ILP_SOLVER_TIMEOUT)
