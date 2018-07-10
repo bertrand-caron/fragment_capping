@@ -71,6 +71,8 @@ class Molecule:
         self.non_bonded_electrons = None
         self.phenyl_atoms = set()
 
+        assert {atom for atom in self.atoms.values()}, 'All atoms are not hashable: {0}'.format(self.atoms.values())
+
     def use_neighbour_valences(self) -> bool:
         return all([atom.valence is not None for atom in self.atoms.values()])
 
@@ -97,6 +99,14 @@ class Molecule:
         if len(self.atoms) > 1:
             assert all([len([bond for bond in self.bonds if atom_index in bond]) > 0 for atom_index in self.atoms.keys()])
         return None
+
+    def update_valences(self) -> None:
+        neighbour_counts = self.neighbours_for_atoms()
+
+        self.atoms = {
+            atom_id: atom._replace(valence=neighbour_counts[atom_id])
+            for (atom_id, atom) in self.atoms.items()
+        }
 
     def __str__(self) -> str:
         try:
@@ -455,7 +465,7 @@ class Molecule:
                 '{index} {name} {coordinates} {sibyl_atom_type} {subst_id} {subst_name} {charge}'.format(
                     index=atom.index,
                     name='A' + str(atom.index),
-                    coordinates=' '.join(map(str, atom.coordinates)),
+                    coordinates=' '.join(map(lambda x: '{0:.3f}'.format(float(x)), atom.coordinates)),
                     sibyl_atom_type=sibyl_atom_type(atom),
                     subst_id=1,
                     subst_name='<1>',
@@ -1206,7 +1216,10 @@ def validated_atoms_dict(atoms: Dict[int, Atom]) -> Dict[int, Atom]:
     for (atom_index, atom) in atoms.items():
         assert atom_index == atom.index, 'Invalid index={0} for atom={1}'.format(atom_index, atom)
 
-    return atoms
+    return {
+        atom_id: atom._replace(coordinates=tuple(atom.coordinates))
+        for (atom_id, atom) in atoms.items()
+    }
 
 def validate_bond_dict(atoms: Dict[int, Atom], bonds: Set[Bond]) -> None:
     all_bond_indices = reduce(

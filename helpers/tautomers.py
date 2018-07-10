@@ -556,6 +556,8 @@ def get_all_tautomers(
                 if electrons % 2 == 1
             }
 
+        new_molecule.update_valences()
+        new_molecule.assign_aromatic_bonds()
         new_molecule.assert_molecule_coherence()
         return new_molecule
 

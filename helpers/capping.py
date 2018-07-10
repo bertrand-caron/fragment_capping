@@ -280,6 +280,8 @@ def get_best_capped_molecule_with_ILP(
             if electrons % 2 == 1
         }
 
+    molecule.update_valences()
+    molecule.assign_aromatic_bonds()
     molecule.assert_molecule_coherence()
     return molecule
 
