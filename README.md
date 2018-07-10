@@ -1,16 +1,22 @@
 [![DOI](https://zenodo.org/badge/96262215.svg)](https://zenodo.org/badge/latestdoi/96262215)
 
-# Exhaustive fragment capping
+# `fragment_capping`: An Integer Linear Program (ILP) for predicting Lewis structures and applications to capping molecular fragments and enumerating tautomers
 
 ## Introduction
 
-Aim: Finding appropriate molecules to parametrise dihedral fragments on.
+This `python` module implements several graph-based Integer Linear Programs (ILPs)
+which are described in the paper:
+
+```
+Caron, Bertrand; Engler, Martin; Mark, Alan E. and Klau, Gunnar W.
+An Integer Linear Program (ILP) for predicting Lewis structures and applications to capping molecular fragments and enumerating tautomers
+```
 
 ## Standard-dependencies
 
 See `requirements.txt`. Install dependencies by running `make setup`.
 
-* `Python >=3.5`
+* `Python >=3.6`
 * `pulp`
 * `networkx`
 * `numpy`
@@ -24,32 +30,67 @@ See `requirements.txt`. Install dependencies by running `make setup`.
 
 All Python module should be located in your `PYTHONPATH`.
 
+## Algorithms and examples
 
-## Problem
+### Lewis structure prediction
+Given a complete molecular graph, returns the best Lewis structure of a molecule by distributing valence electrons to minimise the sum of absolute charge of the molecule and respecting relative atomic electronegativities.
 
-Given a partial molecule graph, construct molecules matching constraints
-(size constraints e.g. smallest, topological constraints e.g. acyclic)
-and order them based on 'chemical relevance'.
+```
+from fragment_capping.helpers.molecule import Molecule, Atom
 
-## Methods
+molecule = Molecule(
+	atoms=[
+		Atom(element='C', capped=True, index=1, valence=2, coordinates=(0, 0, 0)),
+		Atom(element='O', capped=True, index=2, valence=1, coordinates=(1, 0, 0)),
+		Atom(element='O', capped=True, index=3, valence=1, coordinates=(-1, 0, 0)),
+	],
+	bonds=[(1, 2), (1, 3)],
+	name='CO2',
+)
 
-Heuristics:
-* Allowed partial charges per element
-* Allowed bond order per element
+molecule.assign_bond_orders_and_charges_with_ILP()
 
-## Algorithmic
+print(molecule.mol2())
+```
 
-Possible orders of a bond is the set intersection of the possible bond orders of both partners.
+### Fragment capping
+Given a partial molecule graph (**fragment**), find the smallest, most aliphatic, least charged molecule containing this fragment.
 
-Marking uncapped atoms increases comptational efficiency (drastically decreases the number of combinations to try).
-Library of capping strategies for each element
-(e.g. H3, H2, H-CH2 and potentially nothing for a carbon atom, depending on whether or not uncapped atoms were marked).
-Cartesian product of all possible capping strategy.
-For each capped molecule, a list of all possible bond orders and charges assignment is constructed.
+```
+from fragment_capping.helpers.molecule import Molecule, Atom
 
-## Chemical relevance sorting heuristic
+fragment = Molecule(
+	atoms=[
+		Atom(element='C', capped=False, index=1, valence=None, coordinates=[0, 0, 0]),
+		Atom(element='O', capped=True, index=2, valence=1, coordinates=(1, 0, 0)),
+	],
+	bonds=[(1, 2)],
+	name='CO',
+)
 
-Valid capped molecules are sorted with the following heuristic:
-* Sum of absolute values of atomic partial charges (limits charge separation)
-* Number of atoms (smallest molecules)
-* Number of types of double bonds (to respect electronegativity): ('CO', 'CN', 'CC')
+fragment.get_best_capped_molecule_with_ILP()
+
+print(fragment.mol2())
+```
+
+### Tautomer enumeration
+Tautomers are compounds that readily interconvert by the movement of an atom (usually hydrogen) or group of atoms from one site to another within the molecular structure (Katritzky **et al.**, 2010).
+Given a molecule, enumerate all possible tautomers.
+
+```
+from fragment_capping.helpers.molecule import Molecule, Atom
+
+molecule = Molecule(
+	atoms=[
+		Atom(element='C', capped=True, index=1, valence=3, coordinates=(0, 0, 0)),
+		Atom(element='O', capped=True, index=2, valence=1, coordinates=(1, 0, 0)),
+		Atom(element='H', capped=True, index=3, valence=1, coordinates=(0, 1, 0)),
+		Atom(element='H', capped=True, index=4, valence=1, coordinates=(0, -1, 0)),
+	],
+	bonds=[(1, 2), (1, 3), (1, 4)],
+	name='CH2O',
+)
+
+for tautomer in molecule.get_all_tautomers():
+	print(tautomer.mol2())
+```
