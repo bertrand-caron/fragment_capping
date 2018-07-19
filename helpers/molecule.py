@@ -369,19 +369,22 @@ class Molecule:
                 0.1 * (pdb_id % 5),
             )
 
-            print(PDB_TEMPLATE.format(
-                'HETATM',
-                pdb_id,
-                (atom.element.title() + str(atom_index))[:4],
-                'R',
-                '',
-                pdb_id,
-                *coordinates,
-                '',
-                '',
-                atom.element.title(),
-                '',
-            ), file=io)
+            try:
+                print(PDB_TEMPLATE.format(
+                    'HETATM',
+                    pdb_id,
+                    (atom.element.title() + str(atom_index))[:4],
+                    'R',
+                    '',
+                    pdb_id,
+                    *coordinates,
+                    '',
+                    '',
+                    atom.element.title(),
+                    '',
+                ), file=io)
+            except:
+                raise Exception(pdb_id, atom.element, coordinates)
 
         for (atom_index, pdb_id) in sorted(pdb_ids.items(), key=itemgetter(1)):
             print(
@@ -550,7 +553,9 @@ class Molecule:
                 (i, j) = bond
                 e = g.add_edge(_vertices[i], _vertices[j])
                 _edges[bond] = e
+            g._vertices, g._edges = _vertices, _edges
         else:
+            _vertices, _edges = g._vertices, g._edges
             (vertex_types, vertex_colors) = map(lambda type_str: g.vertex_properties[type_str], ['type', 'color'])
             (edge_types,) = map(lambda type_str: g.edge_properties[type_str], ['type'])
 
@@ -897,7 +902,7 @@ class Molecule:
             else []
         )
 
-        net_charge = net_charge if net_charge is not None else self.net_charge if self.net_charge is not None else None
+        net_charge = net_charge if net_charge is not None else (self.net_charge if self.net_charge is not None else None)
 
         if net_charge is not None:
             problem += sum(charges.values()) == net_charge, 'Total net charge'
@@ -1284,7 +1289,7 @@ def molecule_from_mol2_str(mol2_str: str, **kwargs: Dict[str, Any]) -> Molecule:
                 index=int(index_str),
                 element=element,
                 valence=None,
-                coordinates=(x, y, z),
+                coordinates=tuple(map(float, (x, y, z))),
                 capped=True,
             ),
             float(partial_charge),
