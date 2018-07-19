@@ -40,3 +40,11 @@ MMFF94: MMFF94.tar.gz
 setup: requirements.txt
 	pip install -r requirements.txt
 .PHONY: setup
+
+test_MMFF94:
+	python3 tasks/test_mmff94.py --all
+.PHONY: test_MMFF94
+
+test_SIDRUS:
+	python3 tasks/test_mmff94.py --names SIDRUS
+.PHONY: test_SIDRUS
