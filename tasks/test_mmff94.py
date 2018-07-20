@@ -55,7 +55,7 @@ def plot_timings(timings: Dict[str, Tuple[int, int, Any]]) -> None:
     def plot_2D():
         fig = plt.figure()
         ax = fig.add_subplot(111)
-        ax.scatter(xs, zs, alpha=0.7)
+        ax.scatter(xs, zs, alpha=0.5, s=5.0)
         ax.set_xlabel('Atom Number')
         ax.set_ylabel('Timing (s)')
 
@@ -104,6 +104,8 @@ if __name__ == '__main__':
         raise Exception()
 
     SAME_BOND_ORDER, DIFFERENT_BOND_ORDER, WRONG_MOL2, SOLVER_FAILURE = 'S', 'F', 'F_MOL2', 'F_SOLVER'
+    NO_SECOND_RUN = '-'
+    SAME_NET_CHARGE, DIFFERENT_NET_CHARGE = 'C', 'NC'
     status, timings = {}, {}
     try:
         for (i, mol2_str) in enumerate(test_mol2_str, start=1):
@@ -120,23 +122,23 @@ if __name__ == '__main__':
                 status[molecule_name(mol2_str)] = WRONG_MOL2
                 continue
 
-            if CONSTRAINT_TOTAL_CHARGE:
-                net_charge = int(
-                    round(
-                        sum(
-                            float(line.split()[8])
-                            for line in mol2_str.splitlines()
-                            if len(line.split()) == 9 and match('^ *[0-9]+ ', line) is not None
-                        ),
-                    )
+            net_charge = int(
+                round(
+                    sum(
+                        float(line.split()[8])
+                        for line in mol2_str.splitlines()
+                        if len(line.split()) == 9 and match('^ *[0-9]+ ', line) is not None
+                    ),
                 )
-            else:
-                net_charge = None
+            )
 
-            molecule.net_charge = net_charge
+            molecule.net_charge = net_charge if CONSTRAINT_TOTAL_CHARGE else None
             old_molecule = deepcopy(molecule)
             old_bond_orders = deepcopy(molecule.bond_orders)
-            _, graph, pos = molecule.write_graph('RAW', graph_kwargs=dict(include_atom_index=True))
+            _, graph, pos = molecule.write_graph(
+                'RAW',
+                graph_kwargs={'include_atom_index': False, 'vertex_color_scheme': 'elements', 'vertex_label_template': ''},
+            )
 
 
             try:
@@ -155,7 +157,12 @@ if __name__ == '__main__':
                 continue
 
             new_bond_orders = deepcopy(molecule.bond_orders)
-            molecule.write_graph('ILP', g=graph, pos=pos, graph_kwargs=dict(include_atom_index=True))
+            molecule.write_graph(
+                'ILP',
+                g=graph,
+                pos=pos,
+                graph_kwargs={'include_atom_index': False, 'vertex_color_scheme': 'elements', 'vertex_label_template': '{charge_str}'},
+            )
 
             def assert_bond_orders_match(e: Optional['AssertionError']) -> None:
                 assert are_graphs_isomorphic(
@@ -170,11 +177,12 @@ if __name__ == '__main__':
                 ), (
                     molecule.name,
                     {bond: (old_bond_orders[bond], new_bond_orders[bond]) for bond in old_bond_orders.keys() if old_bond_orders[bond] != new_bond_orders[bond]},
+                    SAME_NET_CHARGE if molecule.netcharge() == net_charge else DIFFERENT_NET_CHARGE,
                 )
                 if e is None:
-                    status[molecule.name] = SAME_BOND_ORDER + '0' + ',' + '-'
+                    status[molecule.name] = ','.join((SAME_BOND_ORDER, '0' + (SAME_NET_CHARGE if molecule.netcharge() == net_charge else DIFFERENT_NET_CHARGE), NO_SECOND_RUN))
                 else:
-                    status[molecule.name] = SAME_BOND_ORDER + str(len(e.args[0][1]))  + ',' + '0'
+                    status[molecule.name] = ','.join((SAME_BOND_ORDER, '{0}{1}'.format(len(e.args[0][1]), e.args[0][2]), '0' + (SAME_NET_CHARGE if molecule.netcharge() == net_charge else DIFFERENT_NET_CHARGE)))
 
             try:
                 assert_bond_orders_match(None)
@@ -199,7 +207,13 @@ if __name__ == '__main__':
                     assert_bond_orders_match(e)
                 except AssertionError as f:
                     print(str(e))
-                    status[molecule.name] = DIFFERENT_BOND_ORDER + str(len(e.args[0][1])) + ',' + str(len(f.args[0][1]))
+                    status[molecule.name] = ','.join(
+                        (
+                            DIFFERENT_BOND_ORDER,
+                            '{0}{1}'.format(len(e.args[0][1]), e.args[0][2]),
+                            '{0}{1}'.format(len(f.args[0][1]), f.args[0][2]),
+                        ),
+                    )
     finally:
         get_molecule_name, on_status = itemgetter(0), itemgetter(1)
         grouped = {
