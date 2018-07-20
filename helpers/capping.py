@@ -11,6 +11,7 @@ from fragment_capping.helpers.iterables import MAXIMUM_PERMUTATION_NUMBER
 def get_best_capped_molecule_with_ILP(
     molecule: 'Molecule',
     net_charge: Optional[int] = None,
+    number_hydrogens: Optional[int] = None,
     enforce_octet_rule: bool = True,
     allow_radicals: bool = False,
     debug: Optional[TextIO] = None,
@@ -21,6 +22,7 @@ def get_best_capped_molecule_with_ILP(
     Args:
         ``molecule``: Molecule to be capped. Some of its atoms should have the ``capped`` attribute set to False.
         ``net_charge``: (Optional) Constraint the total net charge for the capped molecule.
+        ``number_hydrogens``: (Optional) Constraint the total number of hydrogens for the capped molecule (including hydrogens already present in the molecule).
         ``enforce_octet_rule``: (Optional) Constraint organic elements (H, C, N, O) to satisfy the octet rule.
         ``allow_radicals``: (Optional) Allow unpaired non-bonded electrons.
         ``debug``: (Optional) Print very detailed debugging information
@@ -93,6 +95,8 @@ def get_best_capped_molecule_with_ILP(
     problem = LpProblem("Capping problem for molecule {0}".format(molecule.name), LpMinimize)
 
     ELECTRON_MULTIPLIER = (2 if not allow_radicals else 1)
+
+    hydrogens_before_capping = len([1 for atom in molecule.atoms.values() if atom.element == 'H'])
 
     counter_charges = {}
     fragment_switches, fragment_scores, fragment_H_scores = {}, {}, {}
@@ -187,7 +191,8 @@ def get_best_capped_molecule_with_ILP(
     ]
 
     H_size_objective = MAX(lpSum([F_i * fragment_H_scores[uncapped_atom_id, i] for ((uncapped_atom_id, i), F_i) in fragment_switches.items()]))
-    if sum([fragment_H_scores[uncapped_atom_id, i] for ((uncapped_atom_id, i), F_i) in fragment_switches.items()]) != 0:
+    has_non_null_H_size_objective = (sum([fragment_H_scores[uncapped_atom_id, i] for ((uncapped_atom_id, i), F_i) in fragment_switches.items()]) != 0)
+    if has_non_null_H_size_objective:
         OBJECTIVES.append(H_size_objective)
 
     total_size_objective = MIN(lpSum([F_i * fragment_scores[uncapped_atom_id, i] for ((uncapped_atom_id, i), F_i) in fragment_switches.items()]))
@@ -201,6 +206,17 @@ def get_best_capped_molecule_with_ILP(
 
     if net_charge is not None:
         problem += (lpSum(charges.values()) == net_charge, 'Known net charge')
+
+    if number_hydrogens is not None:
+        problem += (
+            lpSum(
+                [
+                    F_i * fragment_H_scores[uncapped_atom_id, i]
+                    for ((uncapped_atom_id, i), F_i) in fragment_switches.items()
+                ],
+            ) + hydrogens_before_capping == number_hydrogens,
+            'Total number of hydrogens: {0}'.format(number_hydrogens)
+        )
 
     for atom in molecule.atoms.values():
         problem += (
