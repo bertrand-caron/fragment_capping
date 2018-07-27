@@ -22,6 +22,7 @@ from fragment_capping.helpers.misc import write_to_debug, atom_short_desc
 from fragment_capping.helpers.exceptions import No_Charges_And_Bond_Orders, Too_Many_Permutations, Not_Capped_Error
 from fragment_capping.helpers.iterables import product_len, MAXIMUM_PERMUTATION_NUMBER
 from fragment_capping.helpers.rings import bonds_in_small_rings_for, SMALL_RING, atoms_in_small_rings_for
+from fragment_capping.helpers.sybyl import sybyl_atom_type
 
 PropertyMap = Any
 
@@ -405,52 +406,6 @@ class Molecule:
         def print_to_io(*args):
             print(*args, file=io)
 
-        def sibyl_atom_type(atom: Atom) -> str:
-            if atom.element is None:
-                return 'Du'
-            elif atom.element == 'D':
-                return 'H'
-            elif atom.element == 'P':
-                return 'P.3'
-            elif atom.element.upper() in {'RU', 'CO'}:
-                return atom.element.title() + '.oh'
-            elif atom.element in {'C', 'O', 'N', 'S'}:
-                if atom.element == 'C':
-                    if atom.valence >= 4:
-                        valence = 3
-                    elif atom.valence == 1:
-                        valence = 1
-                    else:
-                        valence = atom.valence - 1
-                elif atom.element == 'O':
-                    valence = atom.valence + 1
-                elif atom.element == 'S':
-                    if atom.valence == 3:
-                        valence = 'o'
-                    elif atom.valence == 4:
-                        valence = 'o2'
-                    elif atom.valence == 2:
-                        valence = 3
-                    else:
-                        valence = 2
-                else:
-                    valence = atom.valence
-
-                if isinstance(valence, int):
-                    assert valence > 0, (atom, valence)
-
-                return '{element}.{valence}'.format(
-                    element=atom.element.title(),
-                    valence=valence,
-                )
-            elif atom.element.upper() in {'TI', 'CR'}:
-                if atom.valence <= 4:
-                    return atom.element.title() + '.th'
-                else:
-                    return atom.element.title() + '.oh'
-            else:
-                return atom.element.title()
-
         print_to_io('@<TRIPOS>MOLECULE')
         print_to_io(self.name)
         print_to_io(
@@ -465,11 +420,11 @@ class Molecule:
         print_to_io('@<TRIPOS>ATOM')
         for atom in self.sorted_atoms():
             print_to_io(
-                '{index} {name} {coordinates} {sibyl_atom_type} {subst_id} {subst_name} {charge}'.format(
+                '{index} {name} {coordinates} {sybyl_atom_type} {subst_id} {subst_name} {charge}'.format(
                     index=atom.index,
                     name='A' + str(atom.index),
                     coordinates=' '.join(map(lambda x: '{0:.3f}'.format(float(x)), atom.coordinates)),
-                    sibyl_atom_type=sibyl_atom_type(atom),
+                    sybyl_atom_type=sybyl_atom_type(atom.element, atom.valence),
                     subst_id=1,
                     subst_name='<1>',
                     charge=float(self.formal_charges[atom.index]),
