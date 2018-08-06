@@ -11,7 +11,7 @@ from fragment_capping.helpers.molecule import molecule_from_mol2_str
 from fragment_capping.helpers.rings import bonds_for_ring
 from fragment_capping.helpers.graphs import lewis_graph, are_graphs_isomorphic
 
-CONSTRAINT_TOTAL_CHARGE = False
+CONSTRAINT_TOTAL_CHARGE = True
 
 def parse_args() -> Namespace:
     parser = ArgumentParser()
@@ -119,7 +119,7 @@ if __name__ == '__main__':
             except Exception as e:
                 print(mol2_str)
                 print(str(e))
-                status[molecule_name(mol2_str)] = WRONG_MOL2
+                status[molecule_name(mol2_str)] = (WRONG_MOL2,) + ((None, None),) * 2
                 continue
 
             net_charge = int(
@@ -153,7 +153,7 @@ if __name__ == '__main__':
                 print(molecule, molecule.net_charge)
                 print(str(e))
                 print('----')
-                status[molecule.name] = SOLVER_FAILURE
+                status[molecule.name] = (SOLVER_FAILURE,) + ((None, None),) * 2
                 continue
 
             new_bond_orders = deepcopy(molecule.bond_orders)
@@ -180,9 +180,17 @@ if __name__ == '__main__':
                     SAME_NET_CHARGE if molecule.netcharge() == net_charge else DIFFERENT_NET_CHARGE,
                 )
                 if e is None:
-                    status[molecule.name] = ','.join((SAME_BOND_ORDER, '0' + (SAME_NET_CHARGE if molecule.netcharge() == net_charge else DIFFERENT_NET_CHARGE), NO_SECOND_RUN))
+                    status[molecule.name] = (
+                        SAME_BOND_ORDER,
+                        (0, (SAME_NET_CHARGE if molecule.netcharge() == net_charge else DIFFERENT_NET_CHARGE)),
+                        (NO_SECOND_RUN, None),
+                    )
                 else:
-                    status[molecule.name] = ','.join((SAME_BOND_ORDER, '{0}{1}'.format(len(e.args[0][1]), e.args[0][2]), '0' + (SAME_NET_CHARGE if molecule.netcharge() == net_charge else DIFFERENT_NET_CHARGE)))
+                    status[molecule.name] = (
+                        SAME_BOND_ORDER,
+                        (len(e.args[0][1]), e.args[0][2]),
+                        (0, (SAME_NET_CHARGE if molecule.netcharge() == net_charge else DIFFERENT_NET_CHARGE)),
+                    )
 
             try:
                 assert_bond_orders_match(None)
@@ -207,12 +215,10 @@ if __name__ == '__main__':
                     assert_bond_orders_match(e)
                 except AssertionError as f:
                     print(str(e))
-                    status[molecule.name] = ','.join(
-                        (
-                            DIFFERENT_BOND_ORDER,
-                            '{0}{1}'.format(len(e.args[0][1]), e.args[0][2]),
-                            '{0}{1}'.format(len(f.args[0][1]), f.args[0][2]),
-                        ),
+                    status[molecule.name] = (
+                        DIFFERENT_BOND_ORDER,
+                        (len(e.args[0][1]), e.args[0][2]),
+                        (len(f.args[0][1]), f.args[0][2]),
                     )
     finally:
         get_molecule_name, on_status = itemgetter(0), itemgetter(1)

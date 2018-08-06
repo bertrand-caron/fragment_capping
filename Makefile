@@ -46,5 +46,5 @@ test_MMFF94:
 .PHONY: test_MMFF94
 
 test_SIDRUS:
-	python3 tasks/test_mmff94.py --names SIDRUS
+	python3 tasks/test_mmff94.py --names SIDRUS JABGAU
 .PHONY: test_SIDRUS
